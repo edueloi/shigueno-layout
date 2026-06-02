@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Shigueno",
+  "description": "Website institucional e portal administrativo da Shigueno (Fazenda Nova Aliança), com gestão de vagas, currículos, relatórios em tempo real e fornecedores de gado de Mato Grosso.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

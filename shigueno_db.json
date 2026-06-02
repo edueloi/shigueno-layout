@@ -1,0 +1,264 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "shigueno",
+      "password": "shigueno2026",
+      "name": "Gestão Shigueno",
+      "role": "admin"
+    }
+  ],
+  "vacancies": [
+    {
+      "id": 1,
+      "title": "Tratorista Agrícola",
+      "department": "Citricultura",
+      "description": "Responsável pelo manejo de tratores e implementos nos pomares de citros, pulverização e preparação do solo na Fazenda Nova Aliança.",
+      "location": "Tatuí - SP",
+      "requirements": "Experiência como operador de tratores, CNH categoria C, conhecimento em manutenção preventiva de equipamentos agrícolas.",
+      "status": "Ativa"
+    },
+    {
+      "id": 2,
+      "title": "Auxiliar de Avicultura",
+      "department": "Avicultura",
+      "description": "Atuar na coleta seletiva de ovos, triagem inicial por qualidade, alimentação e verificação das instalações dos galpões de postura.",
+      "location": "Tatuí - SP",
+      "requirements": "Ensino fundamental completo, proatividade, disposição para trabalhar em ambiente rural e cuidado no manuseio delicado dos produtos.",
+      "status": "Ativa"
+    },
+    {
+      "id": 3,
+      "title": "Campeiro / Tratador de Gado Nelore",
+      "department": "Agropecuária",
+      "description": "Trabalhar na cria e recria do rebanho Nelore, controle de vacinação, alimentação mineral e acompanhamento sanitário nas pastagens.",
+      "location": "Santo Antônio do Leverger - MT",
+      "requirements": "Experiência prévia com manejo de gado de corte, conhecimento básico de medicamentos veterinários e manejo com responsabilidade.",
+      "status": "Ativa"
+    },
+    {
+      "id": 4,
+      "title": "Classificador de Ovos",
+      "department": "Avicultura",
+      "description": "Operar os maquinários de classificação eletrônica, garantindo a divisão precisa entre as classificações Super Extra (Jumbo), Extra, Grande, Médio, Pequeno e Industrial.",
+      "location": "Tatuí - SP",
+      "requirements": "Ensino médio completo, facilidade com painéis de controle, foco em detalhes e boas práticas de higiene alimentar.",
+      "status": "Ativa"
+    }
+  ],
+  "candidates": [
+    {
+      "id": 1,
+      "name": "José Alencar Ramos",
+      "email": "jose.alencar@email.com",
+      "phone": "(15) 99764-5412",
+      "vacancy_id": 1,
+      "cv_text": "Trabalho há mais de 8 anos como tratorista em fazendas de cana e laranja na região de Tatuí e Boituva. Conheço maquinários John Deere e Massey Ferguson. CNH D ativa, curso do Senar de operação de pulverizadores concluído.",
+      "applied_at": "2026-05-25 10:14:00",
+      "status": "Em Análise"
+    },
+    {
+      "id": 2,
+      "name": "Manoel Francisco da Silva",
+      "email": "manoel.nelore@email.com",
+      "phone": "(65) 98112-4433",
+      "vacancy_id": 3,
+      "cv_text": "Campeiro experiente nascido e criado na região do Pantanal. Sei lidar com tropa, aplicar vacinas, tratar bicheiras, marcar e apartar bezerros. Já trabalhei na Fazenda Colorado no MT cuidando de 1200 cabeças de Nelore. Tenho referências na região de Leverger.",
+      "applied_at": "2026-05-27 15:42:00",
+      "status": "Novo"
+    }
+  ],
+  "suppliers": [
+    {
+      "id": 1,
+      "name": "Fazenda Recanto Verde",
+      "city": "Santo Antônio do Leverger",
+      "phone": "(65) 99241-1122",
+      "cattle_count": 420,
+      "cattle_breed": "Nelore Puro",
+      "status": "Ativo",
+      "last_delivery": "2026-04-12"
+    },
+    {
+      "id": 2,
+      "name": "Estância Pantaneira",
+      "city": "Poconé",
+      "phone": "(65) 3345-8899",
+      "cattle_count": 650,
+      "cattle_breed": "Nelore",
+      "status": "Ativo",
+      "last_delivery": "2026-05-02"
+    },
+    {
+      "id": 3,
+      "name": "Sítio Sol Nascente",
+      "city": "Santo Antônio do Leverger",
+      "phone": "(65) 98144-0011",
+      "cattle_count": 180,
+      "cattle_breed": "Nelore / Cruzamento",
+      "status": "Em Negociação",
+      "last_delivery": "2026-02-28"
+    },
+    {
+      "id": 4,
+      "name": "Fazenda Três Corações",
+      "city": "Rondonópolis",
+      "phone": "(66) 3421-5544",
+      "cattle_count": 850,
+      "cattle_breed": "Nelore de Elite",
+      "status": "Ativo",
+      "last_delivery": "2026-05-18"
+    },
+    {
+      "id": 5,
+      "name": "Fazenda Rio Manso",
+      "city": "Cuiabá",
+      "phone": "(65) 99988-7711",
+      "cattle_count": 320,
+      "cattle_breed": "Nelore",
+      "status": "Ativo",
+      "last_delivery": "2026-05-10"
+    },
+    {
+      "id": 6,
+      "name": "Fazenda Novo Progresso",
+      "city": "Cáceres",
+      "phone": "(65) 3223-9911",
+      "cattle_count": 510,
+      "cattle_breed": "Nelore / Angus",
+      "status": "Inativo",
+      "last_delivery": "2025-11-15"
+    }
+  ],
+  "site_settings": [
+    {
+      "key": "company_motto",
+      "value": "Uma empresa sempre preocupada com a qualidade de vida."
+    },
+    {
+      "key": "about_text_intro",
+      "value": "O patriarca da família Shigueno, Sr. Haruo Shigueno chegou ao Brasil em 1932. Na bagagem apenas vontade e determinação."
+    },
+    {
+      "key": "about_text_full",
+      "value": "A princípio se estabeleceu na cidade de Aliança, noroeste do estado de SP, onde foram praticar a cafeicultura, decepcionando-se com o descumprimento do que lhes foi prometido, voltou e estabeleceu-se em Mogi das Cruzes. Numa época em que ninguém ousava criar galinhas comercialmente, Haruo Shigueno com 18 anos, começou a importar incubatórios e produzir pintinhos, dando início na atividade de avicultura na família. Com a expansão dos negócios, os irmãos Shigueno se separaram, ficando um irmão em Mogi das Cruzes e Haruo foi para São José dos Campos. Com a desapropriação sofrida pela Granja Shigueno em São José dos Campos, voltou-se o visionário Haruo Shigueno para a cidade de Tatuí, onde por volta de 1970 começou a montar sua granja."
+    },
+    {
+      "key": "about_diversification",
+      "value": "Com a produção de ovos em maior escala, surgiu o esterco das aves e porque não aproveitá-lo para a citricultura? Foi aí que se iniciou, já em 1975, quando pouco se falava em adubação orgânica, iniciou-se a fertilização da terra com o esterco das galinhas em pomares de citricultura. Posteriormente estendeu a área de citros também para Buri - SP e cafeicultura em Itaí - SP, conseguindo graças à adubação orgânica uma produtividade invejável."
+    },
+    {
+      "key": "contact_email",
+      "value": "sac@shigueno.com.br"
+    },
+    {
+      "key": "contact_phone",
+      "value": "(15) 3259-9710"
+    },
+    {
+      "key": "show_blog_on_menu",
+      "value": "true"
+    }
+  ],
+  "routes": [],
+  "blog_posts": [
+    {
+      "id": 1,
+      "title": "Como a Adubação Orgânica de Postura Revolucionou Nossos Pomares de Citros",
+      "slug": "adubacao-organica-revolucionou-pomares-citros",
+      "excerpt": "Desde 1975, o Grupo Shigueno utiliza o esterco das aves como fertilizante orgânico inovador, resultando em uma produtividade invejável e sustentável em Tatuí e Buri.",
+      "content": "A história da nossa diversificação é pautada pela inteligência ecológica e economia circular pioneira. Quando na década de 1970 consolidamos a produção de ovos em Tatuí - SP, um desafio produtivo se transformou em uma oportunidade de ouro: o que fazer com o esterco decorrente do adubo natural das aves de postura?\n\nA resposta veio em 1975 na mente visionária de Haruo Shigueno. Ao invés de descartar o composto, iniciamos estudos e aplicações sistemáticas de fertilização orgânica em nossos pomares de citros. Esta prática, que na época era vista com ceticismo pela agricultura convencional, provou-se altamente eficiente.\n\n### Benefícios Observados na Citricultura Shigueno:\n\n1. **Enriquecimento Biológico do Solo:** Ao contrário dos fertilizantes sintéticos, o esterco de galinha enriquecido reativa a microfauna benéfica do solo, melhorando a absorção de nutrientes.\n2. **Retenção de Umidade:** Solos adubados organicamente retêm até 30% mais água, provendo resiliência crucial durante as estiagens na região de Buri.\n3. **Sanidade da Planta:** Pomares nutridos à base de composto orgânico exibem cutículas foliares mais espessas, reduzindo a incidência de fitopatógenos e pragas.\n\nHoje, nossa produtividade por hectare supera médias nacionais, comprovando que a preservação ecológica e a rentabilidade caminham de mãos dadas!",
+      "image_url": "https://images.unsplash.com/photo-1557800636-894a64c1696f?w=800&auto=format&fit=crop&q=80",
+      "category_id": 2,
+      "author_id": 3,
+      "status": "Publicado",
+      "views": 142,
+      "published_at": "2026-05-10T12:00:00Z",
+      "is_featured": true,
+      "tags": "citricultura,adubação orgânica,sustentabilidade,tatuí"
+    },
+    {
+      "id": 2,
+      "title": "Qualidade do Ovo Shigueno: Do Galpão Climatizado até a Mesa em Horas",
+      "slug": "qualidade-do-ovo-shigueno-galpao-mesa-horas",
+      "excerpt": "Especialização, nutrição balanceada e triagem eletrônica precisa garantem a excelência que consolidou nossa marca de ovos na região desde 1970.",
+      "content": "Na Granja Shigueno, cada detalhe no galpão é acompanhado com rigor científico. Nossas galinhas recebem uma ração balanceada exclusiva de grãos, complementada com minerais cruciais para que a casca do ovo seja altamente resistente e o interior possua coloração e sabor impecáveis.\n\n### A Jornada da Excelência:\n\n* **Coleta Delicada e Monitorada:** Os ovos são coletados com esteiras suaves, minimizando trincas microbianas.\n* **Classificação Eletrônica:** Contamos com equipamentos automatizados modernos que separam perfeitamente as classificações entre *Super Extra (Jumbo)*, *Extra*, *Grande*, *Médio* e *Pequeno*.\n* **Logística Integrada:** Nossos frotistas rastreados iniciam o transporte nas primeiras horas da manhã, garantindo que panificadoras e supermercados de Sorocaba, Tatuí e região recebam ovos frescos em tempo recorde.\n\nA tradição iniciada por Haruo Shigueno mantém-se ativa graças à inovação contínua e zelo de toda a nossa equipe técnica!",
+      "image_url": "https://images.unsplash.com/photo-1506976785307-8732e854ad03?w=800&auto=format&fit=crop&q=80",
+      "category_id": 1,
+      "author_id": 1,
+      "status": "Publicado",
+      "views": 89,
+      "published_at": "2026-05-18T08:30:00Z",
+      "is_featured": false,
+      "tags": "ovos,avicultura,tecnologia,frescor"
+    },
+    {
+      "id": 3,
+      "title": "Manejo Gentil e Dignidade Animal na Criação de Bezerros Nelore no MT",
+      "slug": "manejo-gentil-dignidade-bezerros-nelore-mt",
+      "excerpt": "Como aplicamos técnicas de manejo racional para eliminar o estresse no rebanho, elevando as margens de recria com segurança veterinária no Mato Grosso.",
+      "content": "Nos limites de Santo Antônio do Leverger, no estado de Mato Grosso, nosso rebanho da raça Nelore é criado sob uma filosofia rígida de respeito e cuidado. Acreditamos que a produtividade está intrinsecamente ligada ao bem-estar do animal.\n\n### Princípios do Manejo Racional Shigueno:\n\n* **Zero Violência ou Gritos:** Os campeiros são treinados para guiar o rebanho utilizando apenas linguagem corporal e toques gentis, eliminando o estresse.\n* **Pastoreio Rotacionado Intensivo:** As pastagens são divididas em piquetes gerenciados, garantindo pasto verde, volumoso fresco e tempo para reuniões de manejo.\n* **Nutrição Mineral Premium:** Cochos higienizados e cobertos fornecem suplementação de fósforo e oligoelementos essenciais para a saúde dos bezerros de recria.\n\nCom corpo veterinário contínuo, mantemos controle sob imunização sanitária contra febre aftosa e outras epizootias, garantindo que nossos parceiros de recria de Mato Grosso recebam lotes de bezerros saudáveis e de procedência idônea. Isso é pecuária com dignidade!",
+      "image_url": "https://images.unsplash.com/photo-1570042225831-d98fa7577f1e?w=800&auto=format&fit=crop&q=80",
+      "category_id": 4,
+      "author_id": 2,
+      "status": "Publicado",
+      "views": 121,
+      "published_at": "2026-05-22T15:00:00Z",
+      "is_featured": false,
+      "tags": "nelore,mato grosso,pecuária,bem-estar animal"
+    }
+  ],
+  "blog_categories": [
+    {
+      "id": 1,
+      "name": "Avicultura Moderna",
+      "description": "Tudo sobre manejo de postura, qualidade de ovos e biosseguridade."
+    },
+    {
+      "id": 2,
+      "name": "Citricultura Sustentável",
+      "description": "Técnicas de cultivo de laranja e limão com adubação orgânica."
+    },
+    {
+      "id": 3,
+      "name": "Cafeicultura de Altitude",
+      "description": "Práticas de colheita sustentável e produção de café especial."
+    },
+    {
+      "id": 4,
+      "name": "Pecuária Nelore",
+      "description": "Cria e recria de gado Nelore com máxima dignidade nas pastagens do MT."
+    },
+    {
+      "id": 5,
+      "name": "Sustentabilidade Rural",
+      "description": "Adubação orgânica, conservação do solo e preservação de mananciais."
+    }
+  ],
+  "blog_authors": [
+    {
+      "id": 1,
+      "name": "Haruo Shigueno Junior",
+      "role": "Diretor de Operações",
+      "bio": "Neto do fundador Haruo Shigueno, dedicado à expansão das tecnologias agrícolas do Grupo Shigueno.",
+      "instagram": "@haruoshiguenojr",
+      "avatar_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": 2,
+      "name": "Dra. Aline Shigueno",
+      "role": "Médica Veterinária",
+      "bio": "Especialista em manejo gentil e sanidade animal, encarregada do plantel Nelore e do controle geral das aves.",
+      "instagram": "@aline_shigueno",
+      "avatar_url": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
+    },
+    {
+      "id": 3,
+      "name": "Eng. Agrônomo Lucas Mendes",
+      "role": "Gestor de Culturas",
+      "bio": "Mestre em solos e nutrição de plantas. Coordenador de adubação sustentável na Fazenda Nova Aliança.",
+      "instagram": "@lucasmendes.agro",
+      "avatar_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    }
+  ]
+}

@@ -1,0 +1,160 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700;800;900&family=JetBrains+Mono:wght@400;550;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Premium micro-classes */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Entry Loader Keyframes */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spinSlow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { transform: scale(0.92); opacity: 0.25; }
+  50% { transform: scale(1.08); opacity: 0.5; }
+}
+
+@keyframes bounceSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes infiniteLoading {
+  0% { left: -50%; width: 50%; }
+  50% { width: 35%; }
+  100% { left: 110%; width: 50%; }
+}
+
+@keyframes subtleFloat {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(0.8deg); }
+}
+
+/* Micro-animations and interaction constraints */
+.animate-slide-up {
+  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3.5s ease-in-out infinite;
+}
+
+.animate-bounce-soft {
+  animation: bounceSoft 2.5s ease-in-out infinite;
+}
+
+.animate-infinite-loading {
+  animation: infiniteLoading 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-subtle-float {
+  animation: subtleFloat 4s ease-in-out infinite;
+}
+
+/* Image zoom-on-hover triggers */
+.image-zoom-container {
+  overflow: hidden;
+  position: relative;
+}
+
+.image-zoom-container img {
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1), filter 0.8s ease;
+}
+
+.image-zoom-container:hover img {
+  transform: scale(1.06);
+}
+
+/* Desktop action pointer fallback */
+button,
+select,
+input[type="submit"],
+input[type="button"],
+input[type="checkbox"],
+[onClick],
+[onclick],
+.cursor-pointer {
+  cursor: pointer !important;
+}
+
+/* Custom color helper definitions compatible with Tailwind utility naming */
+.bg-emerald-750 {
+  background-color: #075f46;
+}
+.bg-emerald-850 {
+  background-color: #044b36;
+}
+.bg-emerald-905 {
+  background-color: #022e20;
+}
+.text-emerald-850 {
+  color: #044b36;
+}
+.border-emerald-250 {
+  border-color: #a7f3d0;
+}
+.bg-amber-105 {
+  background-color: #fef3c7;
+}
+.text-amber-405 {
+  color: #fbbf24;
+}
+.text-amber-650 {
+  color: #d97706;
+}
+.text-amber-850 {
+  color: #b45309;
+}
+.text-red-650 {
+  color: #dc2626;
+}
+.bg-red-650 {
+  background-color: #dc2626;
+}
+.hover\:bg-red-750:hover {
+  background-color: #b91c1c;
+}
+.hover\:text-red-650:hover {
+  color: #dc2625;
+}
+
