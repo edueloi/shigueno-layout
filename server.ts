@@ -16,6 +16,7 @@ import dashboardRouter from './server/routes/dashboard.routes';
 import routesRouter from './server/routes/routes.routes';
 import blogRouter from './server/routes/blog.routes';
 import activitiesRouter from './server/routes/activities.routes';
+import chatbotRouter from './server/routes/chatbot.routes';
 
 async function startServer() {
   const app = express();
@@ -40,6 +41,7 @@ async function startServer() {
   app.use('/api', routesRouter);
   app.use('/api', blogRouter);
   app.use('/api', activitiesRouter);
+  app.use('/api', chatbotRouter);
 
   // Image proxy route for Sr. Haruo Shigueno's original image (avoids Mixed Content HTTP block in browser HTTPS iframe)
   app.get('/api/haruo-image', async (req, res) => {

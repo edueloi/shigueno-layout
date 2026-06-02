@@ -9,6 +9,7 @@ import ContatoView from './components/ContatoView';
 import LoginView from './components/LoginView';
 import AdminPanel from './components/AdminPanel';
 import BlogView from './components/BlogView';
+import ChatbotWidget from './components/ChatbotWidget';
 import { SiteSettings } from './types';
 
 export default function App() {
@@ -187,6 +188,9 @@ export default function App() {
       {currentView !== 'admin' && (
         <Footer onNavigate={handleNavigation} siteSettings={siteSettings} />
       )}
+
+      {/* Floating ShiguenoBot Chatbot Widget & WhatsApp Autoatendimento */}
+      <ChatbotWidget siteSettings={siteSettings} />
     </div>
   );
 }

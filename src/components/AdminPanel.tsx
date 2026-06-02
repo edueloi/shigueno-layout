@@ -4,7 +4,7 @@ import {
   Edit, CheckCircle2, ChevronRight, X, AlertCircle, RefreshCw, BarChart2,
   FileText, Calendar, Filter, Leaf, Download, Menu, Home, LogOut,
   Truck, Navigation, Compass, Map, Activity, Play, CheckCircle, Clock, Settings,
-  LayoutGrid, Search, Sparkles, PlusCircle, Award
+  LayoutGrid, Search, Sparkles, PlusCircle, Award, GripVertical
 } from 'lucide-react';
 import { 
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
@@ -122,10 +122,27 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
 
   // Candidate detail viewer
   const [viewingCandidate, setViewingCandidate] = React.useState<Candidate | null>(null);
+  const [recruiterNotes, setRecruiterNotes] = React.useState('');
+
+  React.useEffect(() => {
+    if (viewingCandidate) {
+      setRecruiterNotes(localStorage.getItem(`recruiter-notes-${viewingCandidate.id}`) || '');
+    } else {
+      setRecruiterNotes('');
+    }
+  }, [viewingCandidate?.id]);
+
+  const handleSaveNotes = () => {
+    if (viewingCandidate) {
+      localStorage.setItem(`recruiter-notes-${viewingCandidate.id}`, recruiterNotes);
+      showSuccess('Parecer interno do candidato registrado localmente!');
+    }
+  };
 
   // Filters
   const [cityFilter, setCityFilter] = React.useState('Todos');
   const [activityCategoryFilter, setActivityCategoryFilter] = React.useState('Todos');
+  const [activitySearchQuery, setActivitySearchQuery] = React.useState('');
   const [candidateStatusFilter, setCandidateStatusFilter] = React.useState('Todos');
   const [candidateSearchQuery, setCandidateSearchQuery] = React.useState('');
   const [candidateVacancyFilter, setCandidateVacancyFilter] = React.useState('Todos');
@@ -156,6 +173,21 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
   const [siteProdCafeicultura, setSiteProdCafeicultura] = React.useState('');
   const [siteProdNelore, setSiteProdNelore] = React.useState('');
   const [activeEditTab, setActiveEditTab] = React.useState<'home' | 'sobre' | 'produtos' | 'contato'>('home');
+
+  // Dynamic Kanban column and drag states
+  const [kanbanColumns, setKanbanColumns] = React.useState<string[]>([
+    'A Fazer', 'Em Progresso', 'Concluído', 'Novas Contratações', 'Ações Financeiras'
+  ]);
+  const [newColumnName, setNewColumnName] = React.useState('');
+  const [isAddingColumn, setIsAddingColumn] = React.useState(false);
+  const [renamingColumn, setRenamingColumn] = React.useState<string | null>(null);
+  const [renamingColumnValue, setRenamingColumnValue] = React.useState('');
+  const [draggedCardId, setDraggedCardId] = React.useState<number | null>(null);
+  const [draggedOverColumn, setDraggedOverColumn] = React.useState<string | null>(null);
+
+  // Modern Confirmation Modals for Activities & Columns
+  const [activityToDelete, setActivityToDelete] = React.useState<any | null>(null);
+  const [columnToDelete, setColumnToDelete] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     fetchInitialData();
@@ -233,6 +265,17 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
         setSiteProdCitricultura(settingsData.config.prod_citricultura_desc || '');
         setSiteProdCafeicultura(settingsData.config.prod_cafeicultura_desc || '');
         setSiteProdNelore(settingsData.config.prod_nelore_desc || '');
+        
+        if (settingsData.config.kanban_columns) {
+          try {
+            const parsedCols = JSON.parse(settingsData.config.kanban_columns);
+            if (Array.isArray(parsedCols) && parsedCols.length > 0) {
+              setKanbanColumns(parsedCols);
+            }
+          } catch(e) {
+            console.error('Falha ao ler colunas do kanban:', e);
+          }
+        }
       }
 
     } catch (e) {
@@ -454,17 +497,24 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
     }
   };
 
-  const deleteActivity = async (id: number) => {
-    if (!confirm('Deseja realmente remover esta atividade do quadro?')) return;
+  const deleteActivity = (act: any) => {
+    setActivityToDelete(act);
+  };
+
+  const confirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+    const id = activityToDelete.id;
     try {
       const res = await authFetch(`/api/activities/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
-        showSuccess('Atividade removida com sucesso.');
+        showSuccess('Atividade removida com sucesso do quadro.');
         fetchInitialData();
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setActivityToDelete(null);
     }
   };
 
@@ -485,10 +535,149 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
     setActTitle('');
     setActDescription('');
     setActCategory('Ações');
-    setActStatus('A Fazer');
+    setActStatus(kanbanColumns[0] || 'A Fazer');
     setActPriority('Média');
     setActResponsible('');
     setActDueDate('');
+  };
+
+  // --- KANBAN COLUMN & DRAG AND DROP HANDLERS ---
+  const updateKanbanColumns = async (updatedColumns: string[]) => {
+    setKanbanColumns(updatedColumns);
+    try {
+      await authFetch('/api/site-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kanban_columns: JSON.stringify(updatedColumns)
+        })
+      });
+    } catch (e) {
+      console.warn('Falha ao salvar colunas customizadas no servidor:', e);
+    }
+  };
+
+  const handleAddColumn = async () => {
+    const trimmed = newColumnName.trim();
+    if (!trimmed) {
+      setIsAddingColumn(false);
+      return;
+    }
+    if (kanbanColumns.includes(trimmed)) {
+      alert('Já existe uma coluna com esse nome.');
+      return;
+    }
+    
+    const updated = [...kanbanColumns, trimmed];
+    await updateKanbanColumns(updated);
+    setIsAddingColumn(false);
+    setNewColumnName('');
+    showSuccess(`Coluna "${trimmed}" criada!`);
+  };
+
+  const handleSaveColumnRename = async (oldName: string) => {
+    const trimmedNewName = renamingColumnValue.trim();
+    if (!trimmedNewName || trimmedNewName === oldName) {
+      setRenamingColumn(null);
+      return;
+    }
+    
+    // Update columns array
+    const updatedCols = kanbanColumns.map(col => col === oldName ? trimmedNewName : col);
+    
+    // Update all activities belonging to old static status
+    const cardsToRename = activities.filter(a => a.status === oldName);
+    for (const card of cardsToRename) {
+      try {
+        await authFetch(`/api/activities/${card.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...card, status: trimmedNewName })
+        });
+      } catch (e) {
+        console.error('Falha ao atualizar atividade durante o renomeamento da coluna:', e);
+      }
+    }
+    
+    await updateKanbanColumns(updatedCols);
+    setRenamingColumn(null);
+    fetchInitialData();
+    showSuccess(`Coluna renomeada de "${oldName}" para "${trimmedNewName}".`);
+  };
+
+  const confirmDeleteColumn = async () => {
+    if (!columnToDelete) return;
+    
+    // Filter out this column from list
+    const filteredColumns = kanbanColumns.filter(col => col !== columnToDelete);
+    
+    // Reassigned status of items belonging to deleted column to move them to the first remaining column
+    const fallbackCol = filteredColumns[0] || 'A Fazer';
+    const cardsToMove = activities.filter(a => a.status === columnToDelete);
+    
+    for (const card of cardsToMove) {
+      try {
+        await authFetch(`/api/activities/${card.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...card, status: fallbackCol })
+        });
+      } catch (e) {
+        console.error('Falha ao mover atividade de coluna excluída:', e);
+      }
+    }
+    
+    await updateKanbanColumns(filteredColumns);
+    setColumnToDelete(null);
+    fetchInitialData();
+    showSuccess(`Coluna "${columnToDelete}" excluída. Atividades movidas para "${fallbackCol}".`);
+  };
+
+  // Drag and Drop handlers
+  const handleDragStart = (e: React.DragEvent, id: number) => {
+    setDraggedCardId(id);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(id));
+  };
+
+  const handleDragOver = (e: React.DragEvent, colStatus: string) => {
+    e.preventDefault();
+    if (draggedOverColumn !== colStatus) {
+      setDraggedOverColumn(colStatus);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetStatus: string) => {
+    e.preventDefault();
+    const cardIdStr = e.dataTransfer.getData('text/plain') || String(draggedCardId);
+    const id = Number(cardIdStr);
+    
+    setDraggedCardId(null);
+    setDraggedOverColumn(null);
+    
+    if (!id) return;
+    
+    const act = activities.find(a => a.id === id);
+    if (!act || act.status === targetStatus) return;
+    
+    // Optimistic UI update: immediately move the card to the target column locally
+    setActivities(prev => prev.map(a => a.id === id ? { ...a, status: targetStatus } : a));
+    
+    try {
+      const res = await authFetch(`/api/activities/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...act, status: targetStatus })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        console.error('Erro ao atualizar status da atividade no servidor:', data.error);
+        fetchInitialData();
+      }
+    } catch (err) {
+      console.error(err);
+      fetchInitialData();
+    }
   };
 
   // --- CRUD VAGAS ---
@@ -1565,12 +1754,35 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                     <p className="text-xs text-slate-500">Fluxo Kanban integrado para planejar ações, compras, contratações gerais e finanças da corporação.</p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <div className="relative">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Search Bar for Title and Assigned User */}
+                    <div className="relative min-w-[220px]">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                        <Search className="w-3.5 h-3.5" />
+                      </span>
+                      <input
+                        type="text"
+                        value={activitySearchQuery}
+                        onChange={(e) => setActivitySearchQuery(e.target.value)}
+                        placeholder="Buscar título ou responsável..."
+                        className="w-full bg-white border border-slate-250 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold focus:outline-emerald-850 placeholder:text-slate-400/90"
+                      />
+                      {activitySearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setActivitySearchQuery('')}
+                          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="relative font-bold">
                       <select
                         value={activityCategoryFilter}
                         onChange={(e) => setActivityCategoryFilter(e.target.value)}
-                        className="bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-emerald-850"
+                        className="bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-emerald-850"
                       >
                         <option value="Todos">Filtrar Categoria: Todos</option>
                         <option value="Compras">Compras</option>
@@ -1646,9 +1858,9 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                           onChange={(e) => setActStatus(e.target.value)}
                           className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850"
                         >
-                          <option value="A Fazer">A Fazer</option>
-                          <option value="Em Progresso">Em Progresso</option>
-                          <option value="Concluído">Concluído</option>
+                          {kanbanColumns.map(col => (
+                            <option key={col} value={col}>{col}</option>
+                          ))}
                         </select>
                       </div>
 
@@ -1711,133 +1923,230 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                 )}
 
                 {/* Kanban Columns */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {['A Fazer', 'Em Progresso', 'Concluído'].map((columnStatus) => {
+                <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-6 pt-2 items-start scrollbar-thin scrollbar-thumb-emerald-800 scrollbar-track-slate-100">
+                  {kanbanColumns.map((columnStatus, columnIndex) => {
                     const filteredList = activities.filter((act) => {
                       const matchesStatus = act.status === columnStatus;
                       const matchesCategory = activityCategoryFilter === 'Todos' || act.category === activityCategoryFilter;
-                      return matchesStatus && matchesCategory;
+                      
+                      const searchStr = activitySearchQuery.trim().toLowerCase();
+                      const matchesSearch = !searchStr || 
+                        (act.title && act.title.toLowerCase().includes(searchStr)) || 
+                        (act.responsible && act.responsible.toLowerCase().includes(searchStr));
+                      
+                      return matchesStatus && matchesCategory && matchesSearch;
                     });
 
+                    const isOver = draggedOverColumn === columnStatus;
+
                     return (
-                      <div key={columnStatus} className="bg-slate-50/70 border border-slate-200/50 rounded-2xl p-4 flex flex-col min-h-[500px]">
-                        <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200">
-                          <div className="flex items-center space-x-2">
-                            <span className={`w-2.5 h-2.5 rounded-full ${
-                              columnStatus === 'A Fazer' ? 'bg-amber-500' :
-                              columnStatus === 'Em Progresso' ? 'bg-indigo-600' :
-                              'bg-emerald-600'
-                            }`} />
-                            <h3 className="font-sans font-black text-slate-800 text-xs sm:text-sm uppercase tracking-tight">{columnStatus}</h3>
-                          </div>
-                          <span className="bg-slate-200/70 text-slate-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                            {filteredList.length}
-                          </span>
+                      <div
+                        key={columnStatus}
+                        onDragOver={(e) => handleDragOver(e, columnStatus)}
+                        onDragLeave={() => setDraggedOverColumn(null)}
+                        onDrop={(e) => handleDrop(e, columnStatus)}
+                        className={`w-full md:w-80 shrink-0 border rounded-2xl p-4 flex flex-col min-h-[550px] transition-all duration-200 ${
+                          isOver 
+                            ? 'bg-emerald-50/50 border-emerald-400 shadow-md ring-2 ring-emerald-400/20' 
+                            : 'bg-[#fafafa] border-slate-200/60 shadow-xs'
+                        }`}
+                      >
+                        {/* Column Header */}
+                        <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80">
+                          {renamingColumn === columnStatus ? (
+                            <div className="flex items-center space-x-1 w-full animate-scale-in">
+                              <input
+                                type="text"
+                                value={renamingColumnValue}
+                                onChange={(e) => setRenamingColumnValue(e.target.value)}
+                                className="w-full bg-white border border-emerald-350 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-emerald-800"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleSaveColumnRename(columnStatus);
+                                  if (e.key === 'Escape') setRenamingColumn(null);
+                                }}
+                              />
+                              <button
+                                onClick={() => handleSaveColumnRename(columnStatus)}
+                                className="p-1 px-1.5 bg-emerald-800 hover:bg-emerald-900 text-white rounded-lg text-2xs font-extrabold cursor-pointer"
+                                title="Salvar"
+                              >
+                                ✓
+                              </button>
+                              <button
+                                onClick={() => setRenamingColumn(null)}
+                                className="p-1 px-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-lg text-2xs font-extrabold cursor-pointer"
+                                title="Cancelar"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-between w-full group/header">
+                              <div className="flex items-center space-x-2">
+                                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                                  columnIndex === 0 ? 'bg-amber-500' :
+                                  columnIndex === 1 ? 'bg-indigo-600' :
+                                  columnIndex === 2 ? 'bg-emerald-600' :
+                                  'bg-purple-600'
+                                }`} />
+                                <h3 className="font-sans font-black text-[#1e293b] text-xs sm:text-sm uppercase tracking-tight truncate max-w-[155px]">
+                                  {columnStatus}
+                                </h3>
+                              </div>
+                              
+                              <div className="flex items-center space-x-1.5 ml-2 shrink-0">
+                                <span className="bg-slate-200/80 text-[#0f172a] text-[10px] font-black px-2 py-0.5 rounded-full">
+                                  {filteredList.length}
+                                </span>
+                                
+                                {/* Edit and Delete column operations inside of header */}
+                                <button
+                                  onClick={() => {
+                                    setRenamingColumn(columnStatus);
+                                    setRenamingColumnValue(columnStatus);
+                                  }}
+                                  className="text-slate-400 hover:text-emerald-800 opacity-0 group-hover/header:opacity-100 p-0.5 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                                  title="Renomear coluna"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                
+                                <button
+                                  onClick={() => setColumnToDelete(columnStatus)}
+                                  className="text-slate-400 hover:text-rose-600 opacity-0 group-hover/header:opacity-100 p-0.5 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                                  title="Excluir coluna"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        <div className="space-y-4 flex-1">
+                        {/* Column Cards List */}
+                        <div className="space-y-4 flex-1 overflow-y-auto max-h-[600px] pr-0.5 scrollbar-thin">
                           {filteredList.length > 0 ? (
-                            filteredList.map((act) => (
-                              <div
-                                key={act.id}
-                                className="bg-white border border-slate-100/70 hover:border-emerald-100/50 rounded-xl p-4 space-y-3 shadow-[0_4px_18px_rgba(0,0,0,0.02)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.04)] transition-all relative overflow-hidden"
-                              >
-                                {/* Category indicator */}
-                                <div className={`absolute top-0 left-0 w-1 h-full ${
-                                  act.category === 'Compras' ? 'bg-sky-500' :
-                                  act.category === 'Ações' ? 'bg-purple-500' :
-                                  act.category === 'Contratações Gerais' ? 'bg-teal-500' :
-                                  'bg-emerald-500'
-                                }`} />
+                            filteredList.map((act) => {
+                              const isDragging = draggedCardId === act.id;
+                              return (
+                                <div
+                                  key={act.id}
+                                  draggable={true}
+                                  onDragStart={(e) => handleDragStart(e, act.id)}
+                                  onDragEnd={() => {
+                                    setDraggedCardId(null);
+                                    setDraggedOverColumn(null);
+                                  }}
+                                  className={`bg-white border hover:border-emerald-250/70 rounded-xl p-4 space-y-3 shadow-[0_3px_10px_rgba(0,0,0,0.015)] hover:shadow-[0_8px_24px_rgba(4,120,87,0.06)] border-slate-100 cursor-grab active:cursor-grabbing transition-all duration-300 relative overflow-hidden group ${
+                                    isDragging ? 'opacity-30 border-dashed border-emerald-400 scale-95' : 'opacity-100 scale-100'
+                                  }`}
+                                >
+                                  {/* Category vertical indicator flag */}
+                                  <div className={`absolute top-0 left-0 w-1 h-full ${
+                                    act.category === 'Compras' ? 'bg-sky-500' :
+                                    act.category === 'Ações' ? 'bg-purple-500' :
+                                    act.category === 'Contratações Gerais' ? 'bg-teal-500' :
+                                    'bg-emerald-500'
+                                  }`} />
 
-                                <div className="flex items-start justify-between gap-2.5 pl-1.5">
-                                  <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight leading-snug">{act.title}</h4>
-                                  <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${
-                                    act.priority === 'Alta' ? 'bg-red-50 text-red-750 border border-red-100' :
-                                    act.priority === 'Média' ? 'bg-amber-50 text-amber-750 border border-amber-100' :
-                                    'bg-slate-50 text-slate-750 border border-slate-100'
-                                  }`}>
-                                    {act.priority}
-                                  </span>
-                                </div>
-
-                                <p className="text-[11px] text-slate-600 leading-relaxed font-sans pl-1.5 flex-1">
-                                  {act.description}
-                                </p>
-
-                                <div className="flex flex-wrap gap-1.5 pl-1.5">
-                                  <span className="bg-slate-100 text-slate-800 text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
-                                    📁 {act.category}
-                                  </span>
-                                  {act.responsible && (
-                                    <span className="bg-emerald-50/50 text-emerald-800 text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
-                                      👤 {act.responsible}
+                                  <div className="flex items-start justify-between gap-2.5 pl-1.5">
+                                    <div className="flex items-center space-x-2">
+                                      {/* Drag indicator handle */}
+                                      <GripVertical className="w-3.5 h-3.5 text-slate-300 group-hover:text-slate-450 shrink-0 cursor-grab" />
+                                      <h4 className="font-extrabold text-[#0f172a] text-xs sm:text-sm tracking-tight leading-snug">{act.title}</h4>
+                                    </div>
+                                    <span className={`shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase ${
+                                      act.priority === 'Alta' ? 'bg-red-50 text-red-750 border border-red-100' :
+                                      act.priority === 'Média' ? 'bg-amber-50 text-amber-750 border border-amber-100' :
+                                      'bg-[#f1f5f9] text-slate-700 border border-slate-200'
+                                    }`}>
+                                      {act.priority}
                                     </span>
-                                  )}
-                                  {act.due_date && (
-                                    <span className="bg-slate-100 text-slate-850 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-md">
-                                      ⏱️ {act.due_date}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1.5 pl-1.5 gap-2">
-                                  <div className="flex items-center space-x-1">
-                                    <button
-                                      onClick={() => openEditActivity(act)}
-                                      className="p-1 px-2 text-slate-500 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50/50 rounded-lg text-[10px] font-bold transition-all border border-slate-100 cursor-pointer"
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      onClick={() => deleteActivity(act.id)}
-                                      className="p-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg text-[10px] font-bold transition-all border border-rose-100/50 cursor-pointer"
-                                    >
-                                      Excluir
-                                    </button>
                                   </div>
 
-                                  <div className="flex items-center space-x-1 font-mono text-xs">
-                                    {columnStatus !== 'A Fazer' && (
-                                      <button
-                                        title="Recuar status"
-                                        onClick={async () => {
-                                          const prevStatus = columnStatus === 'Em Progresso' ? 'A Fazer' : 'Em Progresso';
-                                          await authFetch(`/api/activities/${act.id}`, {
-                                            method: 'PUT',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ ...act, status: prevStatus })
-                                          });
-                                          fetchInitialData();
-                                        }}
-                                        className="p-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] text-slate-700 cursor-pointer"
-                                      >
-                                        ◀
-                                      </button>
+                                  <p className="text-[11px] text-[#475569] leading-relaxed font-sans pl-1.5 flex-1">
+                                    {act.description}
+                                  </p>
+
+                                  <div className="flex flex-wrap gap-1.5 pl-1.5">
+                                    <span className="bg-slate-100 text-[#334155] text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
+                                      📁 {act.category}
+                                    </span>
+                                    {act.responsible && (
+                                      <span className="bg-emerald-50/70 text-emerald-900 text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
+                                        👤 {act.responsible}
+                                      </span>
                                     )}
-                                    {columnStatus !== 'Concluído' && (
-                                      <button
-                                        title="Avançar status"
-                                        onClick={async () => {
-                                          const nextStatus = columnStatus === 'A Fazer' ? 'Em Progresso' : 'Concluído';
-                                          await authFetch(`/api/activities/${act.id}`, {
-                                            method: 'PUT',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ ...act, status: nextStatus })
-                                          });
-                                          fetchInitialData();
-                                        }}
-                                        className="p-1 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[10px] text-emerald-800 font-bold cursor-pointer"
-                                      >
-                                        ▶
-                                      </button>
+                                    {act.due_date && (
+                                      <span className="bg-amber-50/40 text-amber-900 font-mono text-[8px] font-extrabold px-2 py-0.5 rounded-md border border-amber-105">
+                                        ⏱️ {act.due_date}
+                                      </span>
                                     )}
                                   </div>
+
+                                  {/* Card bottom actions for edits and deletions */}
+                                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1.5 pl-1.5 gap-2">
+                                    <div className="flex items-center space-x-1.5">
+                                      <button
+                                        onClick={() => openEditActivity(act)}
+                                        className="p-1 px-2 text-slate-550 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50/50 rounded-lg text-[10px] font-extrabold transition-all border border-slate-200/60 cursor-pointer"
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        onClick={() => deleteActivity(act)}
+                                        className="p-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg text-[10px] font-extrabold transition-all border border-rose-100 cursor-pointer"
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+
+                                    {/* Quick shift controllers */}
+                                    <div className="flex items-center space-x-1 font-mono text-xs text-slate-400">
+                                      {columnIndex > 0 && (
+                                        <button
+                                          title="Mover para esquerda"
+                                          onClick={async () => {
+                                            const prevStatus = kanbanColumns[columnIndex - 1];
+                                            setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: prevStatus } : a));
+                                            await authFetch(`/api/activities/${act.id}`, {
+                                              method: 'PUT',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ ...act, status: prevStatus })
+                                            });
+                                            fetchInitialData();
+                                          }}
+                                          className="p-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] text-slate-700 font-bold transition-all cursor-pointer"
+                                        >
+                                          ◀
+                                        </button>
+                                      )}
+                                      {columnIndex < kanbanColumns.length - 1 && (
+                                        <button
+                                          title="Mover para direita"
+                                          onClick={async () => {
+                                            const nextStatus = kanbanColumns[columnIndex + 1];
+                                            setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: nextStatus } : a));
+                                            await authFetch(`/api/activities/${act.id}`, {
+                                              method: 'PUT',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ ...act, status: nextStatus })
+                                            });
+                                            fetchInitialData();
+                                          }}
+                                          className="p-1 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[9px] text-emerald-800 font-bold transition-all cursor-pointer"
+                                        >
+                                          ▶
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           ) : (
-                            <div className="py-8 text-center text-slate-400 text-[11px] italic bg-white/70 border border-slate-200/50 rounded-xl font-sans font-medium">
+                            <div className="py-12 text-center text-slate-400 text-[11px] italic bg-white/40 border border-dashed border-slate-200 rounded-xl font-sans font-medium">
                               Nenhuma atividade nesta etapa
                             </div>
                           )}
@@ -1845,7 +2154,124 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                       </div>
                     );
                   })}
+
+                  {/* Add Column Button Card */}
+                  <div className="w-full md:w-80 shrink-0 select-none">
+                    {isAddingColumn ? (
+                      <div className="bg-slate-50 border border-slate-350 border-dashed rounded-2xl p-4 space-y-3 animate-scale-in">
+                        <label className="block text-[10px] font-bold text-[#1e293b] uppercase mb-1">Nova Coluna/Etapa</label>
+                        <input
+                          type="text"
+                          placeholder="Ex: Novos Contratos..."
+                          value={newColumnName}
+                          onChange={(e) => setNewColumnName(e.target.value)}
+                          className="w-full bg-white border border-slate-250 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 focus:outline-emerald-850"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddColumn();
+                            if (e.key === 'Escape') setIsAddingColumn(false);
+                          }}
+                        />
+                        <div className="flex justify-end space-x-1.5 pt-1">
+                          <button
+                            onClick={() => setIsAddingColumn(false)}
+                            className="px-3 py-1.5 text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-xl text-2xs font-extrabold cursor-pointer"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={handleAddColumn}
+                            className="px-3.5 py-1.5 text-white bg-emerald-800 hover:bg-emerald-950 rounded-xl text-2xs font-extrabold shadow-sm cursor-pointer"
+                          >
+                            Criar Coluna
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          setNewColumnName('');
+                          setIsAddingColumn(true);
+                        }}
+                        className="w-full h-28 border-2 border-dashed border-slate-200 hover:border-emerald-400 bg-slate-50/50 hover:bg-emerald-50/10 rounded-2xl flex flex-col items-center justify-center text-slate-500 hover:text-emerald-850 transition-all font-sans cursor-pointer group"
+                      >
+                        <PlusCircle className="w-6 h-6 mb-1.5 text-slate-400 group-hover:text-emerald-700 shrink-0" />
+                        <span className="text-2xs font-black uppercase tracking-wider text-slate-550 group-hover:text-emerald-900">Adicionar Coluna</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+
+                {/* --- MODERN KANBAN CONFIRMATION MODALS --- */}
+                
+                {/* Deletion of Card Modal overlay */}
+                {activityToDelete && (
+                  <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+                    <div className="bg-white rounded-3xl border border-slate-200/50 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-sm w-full animate-scale-in">
+                      <div className="flex items-center space-x-3 text-rose-600 mb-4">
+                        <AlertCircle className="w-6 h-6" />
+                        <h3 className="font-sans font-black text-slate-905 text-sm uppercase tracking-tight">Excluir Atividade</h3>
+                      </div>
+                      
+                      <p className="text-xs text-slate-600 space-y-1 mb-6 leading-relaxed">
+                        <span>Você está prestes a excluir permanentemente a atividade:</span>
+                        <strong className="block text-slate-850 mt-1 font-bold text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                          {activityToDelete.title}
+                        </strong>
+                        <span className="block text-[10px] text-rose-500 mt-2 font-mono font-medium uppercase tracking-wider">▲ Esta ação é definitiva e não poderá ser desfeita.</span>
+                      </p>
+                      
+                      <div className="flex justify-end space-x-2.5">
+                        <button
+                          onClick={() => setActivityToDelete(null)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-2xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={confirmDeleteActivity}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-2xs px-4  py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer"
+                        >
+                          Confirmar Exclusão
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Deletion of Column Modal overlay */}
+                {columnToDelete && (
+                  <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+                    <div className="bg-white rounded-3xl border border-slate-200/50 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-sm w-full animate-scale-in">
+                      <div className="flex items-center space-x-3 text-rose-600 mb-4">
+                        <AlertCircle className="w-6 h-6" />
+                        <h3 className="font-sans font-black text-slate-905 text-sm uppercase tracking-tight">Excluir Coluna do Kanban</h3>
+                      </div>
+                      
+                      <p className="text-xs text-slate-600 space-y-2 mb-6 leading-relaxed">
+                        <span>Deseja realmente remover a coluna <strong>{columnToDelete}</strong> do quadro?</span>
+                        <span className="block text-[10px] text-slate-500 italic">
+                          O fluxo de atividades continuará íntegro. Todos os cartões associados a ela serão recategorizados para a coluna inicial (<strong>{kanbanColumns[0]}</strong>).
+                        </span>
+                      </p>
+                      
+                      <div className="flex justify-end space-x-2.5">
+                        <button
+                          onClick={() => setColumnToDelete(null)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-2xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                        >
+                          Não, Cancelar
+                        </button>
+                        <button
+                          onClick={confirmDeleteColumn}
+                          className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-2xs px-4 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer"
+                        >
+                          Sim, Excluir Coluna
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}
@@ -2346,46 +2772,29 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                       </div>
                     </div>
 
-                    {/* PERSISTED RECRUITER OPINION DIARY */}
-                    {(() => {
-                      const [notesVal, setNotesVal] = React.useState('');
-                      
-                      React.useEffect(() => {
-                        if (viewingCandidate) {
-                          setNotesVal(localStorage.getItem(`recruiter-notes-${viewingCandidate.id}`) || '');
-                        }
-                      }, [viewingCandidate.id]);
-
-                      const handleSaveNotes = () => {
-                        localStorage.setItem(`recruiter-notes-${viewingCandidate.id}`, notesVal);
-                        showSuccess('Parecer interno do candidato registrado localmente!');
-                      };
-
-                      return (
-                        <div className="bg-amber-50/20 border border-amber-200/40 rounded-2xl p-4.5 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <h5 className="text-[10px] font-black uppercase text-amber-800 tracking-wider flex items-center">
-                              <span>📝 Parecer & Diário de Entrevista</span>
-                            </h5>
-                            
-                            <button
-                              type="button"
-                              onClick={handleSaveNotes}
-                              className="px-2.5 py-1 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0"
-                            >
-                              Gravar Notas
-                            </button>
-                          </div>
-                          
-                          <textarea
-                            value={notesVal}
-                            onChange={(e) => setNotesVal(e.target.value)}
-                            placeholder="Adicione observações da conversa telefônica... Ex: agendou teste prático de campo."
-                            className="w-full bg-white border border-amber-100 rounded-xl p-3 text-xs font-normal text-slate-800 outline-none focus:border-amber-500 h-18 placeholder-slate-400 resize-none leading-relaxed font-sans"
-                          />
-                        </div>
-                      );
-                    })()}
+                     {/* PERSISTED RECRUITER OPINION DIARY */}
+                     <div className="bg-amber-50/20 border border-amber-200/40 rounded-2xl p-4.5 space-y-3">
+                       <div className="flex items-center justify-between">
+                         <h5 className="text-[10px] font-black uppercase text-amber-800 tracking-wider flex items-center">
+                           <span>📝 Parecer & Diário de Entrevista</span>
+                         </h5>
+                         
+                         <button
+                           type="button"
+                           onClick={handleSaveNotes}
+                           className="px-2.5 py-1 bg-amber-800 hover:bg-amber-900 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer border-0"
+                         >
+                           Gravar Notas
+                         </button>
+                       </div>
+                       
+                       <textarea
+                         value={recruiterNotes}
+                         onChange={(e) => setRecruiterNotes(e.target.value)}
+                         placeholder="Adicione observações da conversa telefônica... Ex: agendou teste prático de campo."
+                         className="w-full bg-white border border-amber-100 rounded-xl p-3 text-xs font-normal text-slate-800 outline-none focus:border-amber-500 h-18 placeholder-slate-400 resize-none leading-relaxed font-sans"
+                       />
+                     </div>
 
                     {/* Parsing text CV content */}
                     <div className="space-y-1.5 text-left">
@@ -3103,7 +3512,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                                       <p className="font-bold text-slate-900 text-xs">{log.event || 'Sinal de telemetria transmitido com sucesso.'}</p>
                                       <span className="text-[9px] text-slate-400 font-mono font-bold shrink-0">{log.time}</span>
                                     </div>
-                                    <div className="flex items-center space-x-3.5 mt-1 text-[10px] font-mono text-slate-500 font-semibold font-mono">
+                                    <div className="flex items-center space-x-3.5 mt-1 text-[10px] font-mono text-slate-500 font-semibold">
                                       <span>LatLng: {Number(log.lat).toFixed(4)}, {Number(log.lng).toFixed(4)}</span>
                                       <span>•</span>
                                       <span>Velocidade registrada: <strong className="text-emerald-900">{log.speed || 0} km/h</strong></span>
@@ -3125,232 +3534,289 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
 
             {/* SUBTAB 6: DADOS E DIVULGAÇÃO DA INSTITUIÇÃO */}
             {activeSubTab === 'settings' && (
-              <div className="bg-white border border-slate-150 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <div className="border-b border-slate-100 pb-5 mb-6">
-                  <h2 className="text-base sm:text-lg font-black text-slate-900">Editar Dados de Divulgação</h2>
-                  <p className="text-xs text-slate-500 font-medium">Atualize os slogans, informações institucionais, história e contatos organizados por abas da mesma forma que os menus do site.</p>
+              <div className="space-y-6">
+                
+                {/* Header Banner - Border Only, No Shadow */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2 text-emerald-850">
+                      <Settings className="w-5 h-5 text-emerald-800 shrink-0" />
+                      <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight">Dados de Divulgação do Site</h2>
+                    </div>
+                    <p className="text-xs text-slate-550 leading-relaxed font-sans max-w-2xl">
+                      Atualize textos de recepção, legados históricos, abas de produtos e contatos corporativos das fazendas em tempo real diretamente no banco de dados SQLite.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <span className="inline-flex items-center px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold uppercase tracking-wider rounded-full border border-emerald-100">
+                      ⚙️ Sincronizado com SQLite
+                    </span>
+                  </div>
                 </div>
 
-                {/* NESTED SETTINGS TABS */}
-                <div className="flex border-b border-slate-200 mb-6 overflow-x-auto whitespace-nowrap scrollbar-none">
-                  {[
-                    { key: 'home', label: '🏠 Canal Início (Home)' },
-                    { key: 'sobre', label: '📖 Institucional (Sobre Nós)' },
-                    { key: 'produtos', label: '🍊 Segmentos (Produtos)' },
-                    { key: 'contato', label: '📞 Canais de Contato' }
-                  ].map((sub) => (
-                    <button
-                      key={sub.key}
-                      type="button"
-                      onClick={() => setActiveEditTab(sub.key as any)}
-                      className={`px-4 py-2.5 text-xs font-bold rounded-t-xl border-t border-x -mb-px transition-all cursor-pointer ${
-                        activeEditTab === sub.key
-                          ? 'bg-slate-50 border-slate-200 border-b-transparent text-emerald-800 font-black'
-                          : 'bg-white border-transparent text-slate-500 hover:text-slate-800'
-                      }`}
-                    >
-                      {sub.label}
-                    </button>
-                  ))}
-                </div>
-
-                <form onSubmit={handleSaveSettings} className="space-y-6">
+                {/* Responsive Two-Column Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                   
-                  {/* TAB 1: HOME */}
-                  {activeEditTab === 'home' && (
-                    <div className="space-y-4 animate-fade-in">
-                      <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-150 text-xs text-emerald-900 mb-4 font-medium">
-                        Configure as frases de impacto e de apresentação dispostas na página de recepção (Home).
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-xs font-extrabold text-slate-705 tracking-wide uppercase">
-                          Slogan Principal da Família Shigueno
-                        </label>
-                        <input
-                          type="text"
-                          value={siteMotto}
-                          onChange={(e) => setSiteMotto(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none"
-                          placeholder="Ex: Uma empresa sempre preocupada com a qualidade de vida."
-                        />
-                      </div>
+                  {/* Left Column: Subtab Nav cards (Border and clean indicators, no shadow) */}
+                  <div className="lg:col-span-4 space-y-3">
+                    <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Canais Selecionáveis
                     </div>
-                  )}
-
-                  {/* TAB 2: OVER / HISTÓRIA */}
-                  {activeEditTab === 'sobre' && (
-                    <div className="space-y-6 animate-fade-in">
-                      <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-150 text-xs text-emerald-900 mb-2 font-medium">
-                        Configure o legado histórico estruturado do Sr. Haruo Shigueno para inspirar o público institucional.
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>Introdução Histórica (Chegada do Patriarca Sr. Haruo Shigueno)</span>
-                          <span className="text-slate-400 text-[10px]">Introdução em destaque</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={siteAboutIntro}
-                          onChange={(e) => setSiteAboutIntro(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Breve sumário sobre a imigração em 1932..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>História de Fundação (Avicultura e deparação com o campo)</span>
-                          <span className="text-slate-400 text-[10px]">Parágrafo central principal</span>
-                        </label>
-                        <textarea
-                          rows={5}
-                          value={siteAboutFull}
-                          onChange={(e) => setSiteAboutFull(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Detalhes completos sobre Mogi das Cruzes, São José dos Campos e Tatuí..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>Diversificação Agrícola e Progresso das Fazendas</span>
-                          <span className="text-slate-400 text-[10px]">Última seção</span>
-                        </label>
-                        <textarea
-                          rows={4}
-                          value={siteAboutDiversification}
-                          onChange={(e) => setSiteAboutDiversification(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Explicação sobre a citricultura, café e adubo de postura das aves..."
-                        />
-                      </div>
+                    <div className="space-y-2.5">
+                      {[
+                        { key: 'home', label: 'Canal Início (Home)', icon: Home, desc: 'Slogans da página de recepção' },
+                        { key: 'sobre', label: 'Institucional (Sobre)', icon: Users, desc: 'Legado e imigração do patriarca' },
+                        { key: 'produtos', label: 'Segmentos (Produtos)', icon: Leaf, desc: 'Avicultura, citros e bovinos' },
+                        { key: 'contato', label: 'Canais de Contato', icon: Phone, desc: 'E-mails e contatos corporativos' }
+                      ].map((sub) => {
+                        const Icon = sub.icon;
+                        const isSelected = activeEditTab === sub.key;
+                        return (
+                          <button
+                            key={sub.key}
+                            type="button"
+                            onClick={() => setActiveEditTab(sub.key as any)}
+                            className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer flex items-start space-x-3.5 focus:outline-none ${
+                              isSelected
+                                ? 'bg-emerald-50/10 border-emerald-600/80 text-emerald-950 font-black ring-1 ring-emerald-600/20'
+                                : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-750 font-bold'
+                            }`}
+                          >
+                            <span className={`p-2 rounded-lg shrink-0 ${
+                              isSelected ? 'bg-emerald-800 text-white' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              <Icon className="w-4 h-4" />
+                            </span>
+                            <div className="truncate">
+                              <span className="block text-xs uppercase tracking-wider font-extrabold">{sub.label}</span>
+                              <span className="block text-[10px] text-slate-400 font-medium mt-0.5 whitespace-normal leading-tight">{sub.desc}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                  )}
+                  </div>
 
-                  {/* TAB 3: PRODUTOS / PILARES */}
-                  {activeEditTab === 'produtos' && (
-                    <div className="space-y-6 animate-fade-in">
-                      <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-150 text-xs text-emerald-900 mb-2 font-medium">
-                        Edite os textos descritivos que aparecem nas abas técnicas de cada categoria em nosso catálogo de produtos do campo.
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>🥚 Avicultura de Postura - Descrição Executiva</span>
-                          <span className="text-slate-400 text-[10px]">Fazenda Nova Aliança Tatuí (SP)</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={siteProdAvicultura}
-                          onChange={(e) => setSiteProdAvicultura(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Descrição da produção seletiva de ovos..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>🍊 Citricultura Técnica - Descrição Sazonal</span>
-                          <span className="text-slate-400 text-[10px]">Fazendas Califórnia e Aliança</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={siteProdCitricultura}
-                          onChange={(e) => setSiteProdCitricultura(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Descrição do cultivo orgânico de citros com esterco aviário..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>☕ Cafeicultura de Altitude - Descrição Climatológica</span>
-                          <span className="text-slate-400 text-[10px]">Fazendas de Itaí (SP)</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={siteProdCafeicultura}
-                          onChange={(e) => setSiteProdCafeicultura(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Descrição das linhagens de café arábica e microclima..."
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 flex justify-between">
-                          <span>🐂 Nelore Agropecuária - Cria & Recria Sustentável</span>
-                          <span className="text-slate-400 text-[10px]">Santo Antônio do Leverger (MT)</span>
-                        </label>
-                        <textarea
-                          rows={3}
-                          value={siteProdNelore}
-                          onChange={(e) => setSiteProdNelore(e.target.value)}
-                          className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed"
-                          placeholder="Descrição do manejo racional do rebanho Nelore..."
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 4: CONTATO */}
-                  {activeEditTab === 'contato' && (
-                    <div className="space-y-4 animate-fade-in">
-                      <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-150 text-xs text-emerald-900 mb-2 font-medium">
-                        Configure as informações básicas de contato disponibilizadas no rodapé e canal comercial.
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <label className="text-xs font-extrabold text-slate-700 tracking-wide uppercase">
-                            E-mail Geral de Atendimento (SAC)
-                          </label>
-                          <input
-                            type="email"
-                            value={siteContactEmail}
-                            onChange={(e) => setSiteContactEmail(e.target.value)}
-                            className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-mono font-semibold text-slate-800 focus:outline-none"
-                            placeholder="Ex: sac@shigueno.com.br"
-                          />
+                  {/* Right Column: Dynamic Form Workspace (Border only, no heavy shadow) */}
+                  <form onSubmit={handleSaveSettings} className="lg:col-span-8 bg-white border border-slate-200 rounded-2xl p-6 space-y-6">
+                    
+                    {/* Dynamic Tabs Content */}
+                    
+                    {/* TAB 1: HOME */}
+                    {activeEditTab === 'home' && (
+                      <div className="space-y-5 animate-fade-in text-left">
+                        <div className="flex items-center space-x-2 pb-2.5 border-b border-slate-100">
+                          <Home className="w-4.5 h-4.5 text-emerald-800 shrink-0" />
+                          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">Visualização Canal Início (Home)</h3>
                         </div>
-
+                        <p className="text-[11px] text-slate-500 leading-normal">
+                          Configure slogans e termos destacados que acolhem visitantes e representantes comerciais na página de recepção da marca Shigueno.
+                        </p>
                         <div className="space-y-2">
-                          <label className="text-xs font-extrabold text-slate-700 tracking-wide uppercase">
-                            Telefone Comercial (Sede Administrativa Tatuí)
+                          <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest">
+                            Slogan Principal da Família Shigueno
                           </label>
                           <input
                             type="text"
-                            value={siteContactPhone}
-                            onChange={(e) => setSiteContactPhone(e.target.value)}
-                            className="w-full bg-slate-50 hover:bg-slate-50/50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all rounded-xl px-4 py-3 text-xs font-mono font-semibold text-slate-800 focus:outline-none"
-                            placeholder="Ex: (15) 3259-9710"
+                            value={siteMotto}
+                            onChange={(e) => setSiteMotto(e.target.value)}
+                            className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-bold text-slate-855 focus:outline-none placeholder-slate-400"
+                            placeholder="Ex: Uma empresa sempre preocupada com a qualidade de vida."
                           />
                         </div>
                       </div>
+                    )}
+
+                    {/* TAB 2: OVER / HISTÓRIA */}
+                    {activeEditTab === 'sobre' && (
+                      <div className="space-y-5 animate-fade-in text-left">
+                        <div className="flex items-center space-x-2 pb-2.5 border-b border-slate-100">
+                          <Users className="w-4.5 h-4.5 text-emerald-800 shrink-0" />
+                          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">Configuração Institucional (Sobre Nós)</h3>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-normal">
+                          Edite os textos do legado corporativo originados a partir da imigração do patriarca Haruo Shigueno desde 1932.
+                        </p>
+
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                            <span>Introdução Histórica (Chegada em 1932)</span>
+                            <span className="text-slate-400 text-[9px] lowercase font-normal">parágrafo em destaque</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={siteAboutIntro}
+                            onChange={(e) => setSiteAboutIntro(e.target.value)}
+                            className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                            placeholder="Breve sumário sobre a imigração em 1932..."
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                            <span>História de Fundação (Avicultura & Desenvolvimento)</span>
+                            <span className="text-slate-400 text-[9px] lowercase font-normal">corpo de texto principal</span>
+                          </label>
+                          <textarea
+                            rows={5}
+                            value={siteAboutFull}
+                            onChange={(e) => setSiteAboutFull(e.target.value)}
+                            className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                            placeholder="Detalhes completos sobre Mogi das Cruzes, São José dos Campos e Tatuí..."
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                            <span>Diversificação Agrícola e Progresso das Fazendas</span>
+                            <span className="text-slate-400 text-[9px] lowercase font-normal">seção final de legados</span>
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={siteAboutDiversification}
+                            onChange={(e) => setSiteAboutDiversification(e.target.value)}
+                            className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                            placeholder="Explicação sobre a citricultura, café e adubo de postura das aves..."
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 3: PRODUTOS */}
+                    {activeEditTab === 'produtos' && (
+                      <div className="space-y-5 animate-fade-in text-left">
+                        <div className="flex items-center space-x-2 pb-2.5 border-b border-slate-100">
+                          <Leaf className="w-4.5 h-4.5 text-emerald-800 shrink-0" />
+                          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">Segmentos de Produção das Fazendas</h3>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-normal">
+                          Gerencie os resumos explicativos apresentados nos catálogos de produtos e negócios nas seções públicas do site.
+                        </p>
+
+                        <div className="grid grid-cols-1 gap-5">
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                              <span>🥚 Avicultura de Postura - Descrição</span>
+                              <span className="text-emerald-800 text-[9px] font-bold font-sans">Tatuí (SP)</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={siteProdAvicultura}
+                              onChange={(e) => setSiteProdAvicultura(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                              placeholder="Descrição da produção seletiva de ovos..."
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                              <span>🍊 Citricultura Técnica - Descrição</span>
+                              <span className="text-emerald-800 text-[9px] font-bold font-sans">Buri / Aliança</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={siteProdCitricultura}
+                              onChange={(e) => setSiteProdCitricultura(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                              placeholder="Descrição do cultivo orgânico de citros com esterco aviário..."
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                              <span>☕ Cafeicultura de Altitude - Descrição</span>
+                              <span className="text-emerald-800 text-[9px] font-bold font-sans">Itaí (SP)</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={siteProdCafeicultura}
+                              onChange={(e) => setSiteProdCafeicultura(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                              placeholder="Descrição das linhagens de café arábica e microclima..."
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest flex justify-between">
+                              <span>🐂 Nelore Agropecuária - Descrição</span>
+                              <span className="text-emerald-800 text-[9px] font-bold font-sans">Leverger (MT)</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={siteProdNelore}
+                              onChange={(e) => setSiteProdNelore(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-4 py-3 text-xs font-medium text-slate-800 focus:outline-none leading-relaxed placeholder-slate-400"
+                              placeholder="Descrição do manejo racional do rebanho Nelore..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 4: CONTATO */}
+                    {activeEditTab === 'contato' && (
+                      <div className="space-y-5 animate-fade-in text-left">
+                        <div className="flex items-center space-x-2 pb-2.5 border-b border-slate-100">
+                          <Phone className="w-4.5 h-4.5 text-emerald-800 shrink-0" />
+                          <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">Canais de Contato Institucional</h3>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-normal">
+                          Especifique os canais comerciais públicos que representantes e clientes usam no formulário e no rodapé do portal.
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest">
+                              E-mail Geral de Atendimento (SAC)
+                            </label>
+                            <input
+                              type="email"
+                              value={siteContactEmail}
+                              onChange={(e) => setSiteContactEmail(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-3.5 py-3 text-xs font-mono font-semibold text-slate-800 focus:outline-none placeholder-slate-400"
+                              placeholder="Ex: sac@shigueno.com.br"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-mono font-bold text-slate-600 uppercase tracking-widest">
+                              Telefone Comercial (Sede Tatuí)
+                            </label>
+                            <input
+                              type="text"
+                              value={siteContactPhone}
+                              onChange={(e) => setSiteContactPhone(e.target.value)}
+                              className="w-full bg-[#fafafa] hover:bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-700/10 transition-all rounded-xl px-3.5 py-3 text-xs font-mono font-semibold text-slate-800 focus:outline-none placeholder-slate-400"
+                              placeholder="Ex: (15) 3259-9710"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ACTION CONTROLS */}
+                    <div className="pt-6 border-t border-slate-100 flex items-center justify-end space-x-3">
+                      <button
+                        type="button"
+                        onClick={fetchInitialData}
+                        disabled={loading}
+                        className="px-4 py-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-600 font-extrabold rounded-xl text-xs flex items-center space-x-2 transition-all focus:outline-none cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Reverter</span>
+                      </button>
+
+                      <button
+                        type="submit"
+                        disabled={loading}
+                        className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs transition-all shadow-sm tracking-wide uppercase flex items-center space-x-2 cursor-pointer"
+                      >
+                        <span>Gravar Dados</span>
+                      </button>
                     </div>
-                  )}
 
-                  {/* ACTION CONTROLS */}
-                  <div className="pt-6 border-t border-slate-100 flex items-center justify-end space-x-3.5">
-                    <button
-                      type="button"
-                      onClick={fetchInitialData}
-                      disabled={loading}
-                      className="px-5 py-3 border border-slate-250 text-slate-600 hover:bg-slate-50 font-bold rounded-xl text-xs flex items-center space-x-1.5 transition-all focus:outline-none cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Reverter Alterações</span>
-                    </button>
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-6 py-3 bg-emerald-800 hover:bg-emerald-900 text-white font-black rounded-xl text-xs transition-all shadow-sm tracking-widest uppercase flex items-center space-x-2 cursor-pointer"
-                    >
-                      <span>Gravar Dados no site</span>
-                    </button>
-                  </div>
-                </form>
+                  </form>
+                </div>
               </div>
             )}
 

@@ -23,6 +23,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
+  // 3c. Allow public chatbot queries (POST to /api/chatbot)
+  if (path.endsWith('/chatbot') && req.method === 'POST') {
+    return next();
+  }
+
   // 4. Validate authentication token for administrative mutations
   const token = req.headers.authorization || req.headers['x-shigueno-token'];
 
