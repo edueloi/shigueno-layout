@@ -214,8 +214,10 @@ export default function App() {
         <Footer onNavigate={handleNavigation} siteSettings={siteSettings} />
       )}
 
-      {/* Floating ShiguenoBot Chatbot Widget & WhatsApp Autoatendimento */}
-      <ChatbotWidget siteSettings={siteSettings} />
+      {/* Floating ShiguenoBot Chatbot Widget & WhatsApp Autoatendimento — oculto no painel admin */}
+      {currentView !== 'admin' && currentView !== 'login' && (
+        <ChatbotWidget siteSettings={siteSettings} />
+      )}
     </div>
   );
 }

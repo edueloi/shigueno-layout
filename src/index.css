@@ -105,6 +105,51 @@
   transform: scale(1.06);
 }
 
+/* ── Scrollbar global — padrão Shigueno ──────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(4, 75, 54, 0.30);   /* emerald-850 com opacidade */
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(4, 75, 54, 0.55);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(4, 75, 54, 0.30) transparent;
+}
+
+/* Scrollbar ainda mais fino para sidebars e modais */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(7, 95, 70, 0.25);
+  border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(7, 95, 70, 0.45);
+}
+
 /* Desktop action pointer fallback */
 button,
 select,

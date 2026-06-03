@@ -13,6 +13,7 @@ import {
 import { Vacancy, Candidate, Supplier, DashboardStats } from '../types';
 import BlogManager from './BlogManager';
 import A4PosterModal from './A4PosterModal';
+import TrackingPanel from './TrackingPanel';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -1166,7 +1167,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
         </div>
 
         {/* NAVIGATION MENUS */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto scrollbar-thin">
           {[
             { key: 'reports', label: 'Relatórios Gerais', icon: BarChart2 },
             { key: 'suppliers', label: 'Quadro de Atividades', icon: LayoutGrid },
@@ -3034,562 +3035,53 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
 
             {/* SUBTAB 5: RASTREAMENTO & FROTAS */}
             {activeSubTab === 'tracking' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-300">
-                
-                {/* 1. SEÇÃO ESQUERDA: LISTA DE ROTAS E DISPARO DE VIAGEM */}
-                <div className="lg:col-span-4 space-y-6">
-                  <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100/90">
-                    <div className="flex items-center justify-between gap-3 mb-6 border-b border-slate-50 pb-4">
-                      <div>
-                        <h2 className="text-base font-extrabold text-slate-900 leading-snug flex items-center">
-                          <Truck className="w-5 h-5 text-emerald-800 mr-2 shrink-0" />
-                          <span>Frota Ativa</span>
-                        </h2>
-                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider font-mono mt-0.5">Escoamento Agrícola & Pecuário</p>
-                      </div>
-                      
-                      <button
-                        onClick={() => setRouteFormOpen(!routeFormOpen)}
-                        className="flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-extrabold transition-all shadow-xs cursor-pointer select-none shrink-0 uppercase tracking-wider"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Novo Despacho</span>
-                      </button>
-                    </div>
-
-                    {/* FORM OVERLAY TO INICIATE ROUTE */}
-                    {routeFormOpen && (
-                      <form onSubmit={createRoute} className="bg-emerald-50/30 border border-emerald-100/70 rounded-2xl p-5 mb-6 space-y-4 shadow-3xs animate-in zoom-in-95 duration-200 text-xs">
-                        <div className="flex justify-between items-center pb-2.5 border-b border-emerald-100/50">
-                          <span className="font-extrabold text-emerald-950 uppercase tracking-wider flex items-center space-x-1.5 font-sans">
-                            <Compass className="w-4 h-4 text-amber-500 animate-spin" />
-                            <span>Novo Manifesto</span>
-                          </span>
-                          <button 
-                            type="button" 
-                            onClick={() => setRouteFormOpen(false)}
-                            className="text-slate-400 hover:text-slate-700 transition-colors font-bold uppercase text-[9px] tracking-wider cursor-pointer"
-                          >
-                            [ fechar ]
-                          </button>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Nome do Motorista Corretor</label>
-                          <input 
-                            type="text" 
-                            value={driverName}
-                            onChange={(e) => setDriverName(e.target.value)}
-                            placeholder="Ex: Ricardo N. Santos"
-                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all text-slate-800"
-                            required
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Placa do Veículo</label>
-                            <input 
-                              type="text" 
-                              value={vehiclePlate}
-                              onChange={(e) => setVehiclePlate(e.target.value)}
-                              placeholder="Ex: SHI-2026"
-                              className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold uppercase text-slate-800 focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all font-mono"
-                              required
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Tipo / Porte</label>
-                            <select
-                              value={vehicleType}
-                              onChange={(e) => setVehicleType(e.target.value)}
-                              className="w-full px-2.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all cursor-pointer"
-                            >
-                              <option value="Caminhão Baú (Ovos)">Caminhão Baú (Ovos)</option>
-                              <option value="Semirreboque Gaiola (Gado)">Gaiola Nelore (Gado)</option>
-                              <option value="Caminhão Graneleiro (Adubo)">Graneleiro (Adubo)</option>
-                              <option value="Sider Lonado (Citros)">Lonado (Citros)</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Ponto de Partida</label>
-                            <select
-                              value={startLocation}
-                              onChange={(e) => setStartLocation(e.target.value)}
-                              className="w-full px-2.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all cursor-pointer"
-                            >
-                              {Object.keys(PRESET_COORDS).map(loc => (
-                                <option key={loc} value={loc}>{loc}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="space-y-1">
-                            <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Destino Final</label>
-                            <select
-                              value={destination}
-                              onChange={(e) => setDestination(e.target.value)}
-                              className="w-full px-2.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all cursor-pointer"
-                            >
-                              {Object.keys(PRESET_COORDS).map(loc => (
-                                <option key={loc} value={loc}>{loc}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="block text-slate-600 font-extrabold text-[10px] uppercase tracking-wider">Carga & Manifesto Declarado</label>
-                          <input 
-                            type="text" 
-                            value={cargoDesc}
-                            onChange={(e) => setCargoDesc(e.target.value)}
-                            placeholder="Ex: 140 caixas de Ovos Shigueno Especial"
-                            className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all text-slate-800 placeholder-slate-400"
-                            required
-                          />
-                        </div>
-
-                        <button
-                          type="submit"
-                          className="w-full py-3 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-black transition-all shadow-xs uppercase tracking-wider cursor-pointer"
-                        >
-                          🚚 Despachar & Iniciar Rota
-                        </button>
-                      </form>
-                    )}
-
-                    <div className="space-y-3.5">
-                      {routes.length === 0 ? (
-                        <div className="text-center py-10 bg-slate-50/50 rounded-2xl border border-dashed border-slate-100">
-                          <p className="text-xs text-slate-400 italic font-semibold">Nenhum veículo em trânsito no momento.</p>
-                        </div>
-                      ) : (
-                        routes.map((rt) => {
-                          const isActive = rt.status === 'Ativa';
-                          const isSelected = selectedRouteId === rt.id;
-                          return (
-                            <div
-                              key={rt.id}
-                              onClick={() => setSelectedRouteId(rt.id)}
-                              className={`p-4 rounded-2xl border transition-all cursor-pointer select-none relative group ${
-                                isSelected 
-                                  ? 'bg-gradient-to-br from-emerald-50/40 to-emerald-50/10 border-emerald-600 shadow-xs' 
-                                  : 'bg-slate-50/50 hover:bg-slate-50 border-slate-200/80 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="space-y-1">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-wider border ${
-                                    isActive 
-                                      ? 'bg-amber-50 text-amber-900 border-amber-200/50 animate-pulse' 
-                                      : 'bg-slate-200/80 text-slate-600 border-slate-300/40'
-                                  }`}>
-                                    <span className={`w-1 h-1 rounded-full mr-1.5 ${isActive ? 'bg-amber-600 animate-ping' : 'bg-slate-400'}`} />
-                                    {isActive ? 'Em Rota' : 'Concluída'}
-                                  </span>
-                                  <h4 className="text-xs font-black text-slate-900 truncate mt-1 flex items-center">
-                                    {rt.driver_name}
-                                  </h4>
-                                  <p className="text-[10px] text-slate-550 font-mono font-semibold">
-                                    {rt.vehicle_type} • <strong className="text-slate-800 font-extrabold">{rt.vehicle_plate}</strong>
-                                  </p>
-                                </div>
-                                
-                                {rt.status !== 'Ativa' && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deleteRoute(rt.id);
-                                    }}
-                                    className="p-1 px-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
-                                    title="Remover histórico"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-
-                              {/* Progress miniature */}
-                              <div className="mt-4 space-y-1">
-                                <div className="flex justify-between text-[10px] font-bold text-slate-500 font-mono">
-                                  <span>Progresso:</span>
-                                  <span className="font-extrabold text-slate-800">{rt.progress}%</span>
-                                </div>
-                                <div className="w-full bg-slate-200/70 h-2 rounded-full overflow-hidden">
-                                  <div 
-                                    className={`h-full rounded-full transition-all duration-700 ${isActive ? 'bg-emerald-600' : 'bg-slate-500'}`}
-                                    style={{ width: `${rt.progress}%` }}
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="mt-3 text-[10px] border-t border-slate-100 pt-2 flex justify-between text-slate-500 font-bold font-sans">
-                                <span className="truncate max-w-[100px]" title={rt.start_location}>{rt.start_location.split(' ')[0]}</span>
-                                <span className="text-slate-300">➜</span>
-                                <span className="truncate max-w-[100px]" title={rt.destination}>{rt.destination.split(' ')[0]}</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-
-                  {/* CONTROLE SIMULADOR GERAL */}
-                  <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm space-y-4">
-                    <h3 className="font-extrabold text-slate-900 text-sm flex items-center">
-                      <Activity className="w-4 h-4 text-emerald-850 mr-2 animate-pulse" />
-                      <span>Simulação de Telemetria</span>
-                    </h3>
-                    <p className="text-slate-500 text-[11px] leading-relaxed font-semibold">
-                      Com o simulador ligado, os trajetos são atualizados a cada 6s de forma dinâmica pela central para calcular as rotas integradas.
-                    </p>
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-150 gap-3">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                        <span className="font-bold text-slate-600 font-mono text-[9px] uppercase tracking-wider font-sans">Status Transmissão</span>
-                      </div>
-                      <button
-                        onClick={() => setSimulationActive(!simulationActive)}
-                        className={`w-full sm:w-auto px-4 py-2 rounded-xl font-black text-[10px] tracking-wider transition-all uppercase cursor-pointer text-center shrink-0 ${
-                          simulationActive 
-                            ? 'bg-emerald-800 text-white shadow-xs hover:bg-emerald-950' 
-                            : 'bg-red-50 text-red-700 border border-red-200/80 hover:bg-red-150/60'
-                        }`}
-                      >
-                        {simulationActive ? '📡 Simulando GPS' : '⏸️ Simulador Pausado'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. SEÇÃO DIREITA: DETALHAMENTO GPS, MAPA INTERATIVO E HISTÓRICO */}
-                <div className="lg:col-span-8 space-y-6">
-                  {(() => {
-                    const selectedRoute = routes.find(r => r.id === selectedRouteId);
-                    if (!selectedRoute) {
-                       return (
-                        <div className="bg-white border border-dashed border-slate-200 rounded-3xl p-16 text-center text-slate-400 font-semibold shadow-xs flex flex-col items-center justify-center min-h-[450px]">
-                          <Truck className="w-14 h-14 text-slate-300 mb-4 animate-bounce" style={{ animationDuration: '3s' }} />
-                          <h3 className="text-slate-700 font-extrabold text-sm">Nenhum Veículo Selecionado</h3>
-                          <p className="text-xs text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
-                            Selecione uma rota na lista lateral ou registre um Novo Despacho para abrir o mapas e a telemetria satélite em tempo real.
-                          </p>
-                        </div>
-                      );
+              <TrackingPanel
+                routes={routes}
+                selectedRouteId={selectedRouteId}
+                simulationActive={simulationActive}
+                setSelectedRouteId={setSelectedRouteId}
+                setSimulationActive={setSimulationActive}
+                onCreateRoute={(_e, data) => {
+                  const startPreset = (PRESET_COORDS as any)[data.startLoc] || { lat: -23.3556, lng: -47.8556 };
+                  fetch('/api/routes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      driver_name: data.driverName,
+                      vehicle_plate: data.vehiclePlate.toUpperCase(),
+                      vehicle_type: data.vehicleType,
+                      start_location: data.startLoc,
+                      destination: data.destLoc,
+                      current_lat: startPreset.lat,
+                      current_lng: startPreset.lng,
+                      cargo_description: data.cargoDesc
+                    })
+                  }).then(r => r.json()).then(d => {
+                    if (d.success) {
+                      showSuccess('Rota iniciada com rastreamento GPS ativo!');
+                      fetch('/api/routes').then(r => r.json()).then(fd => {
+                        if (fd.success) { setRoutes(fd.routes || []); setSelectedRouteId(d.id); }
+                      });
                     }
-
-                    const startPreset = PRESET_COORDS[selectedRoute.start_location] || { lat: -23.3556, lng: -47.8556 };
-                    const endPreset = PRESET_COORDS[selectedRoute.destination] || { lat: -23.7975, lng: -48.5133 };
-
-                    // Coordinates list for SVG path rendering (Southeast bounds setup)
-                    const minLat = -24.5;
-                    const maxLat = -14.0;
-                    const minLng = -57.5;
-                    const maxLng = -45.5;
-
-                    const getXY = (lat: number, lng: number) => {
-                      const x = ((lng - minLng) / (maxLng - minLng)) * 750;
-                      const y = (1 - (lat - minLat) / (maxLat - minLat)) * 400;
-                      return { x, y };
-                    };
-
-                    const startXY = getXY(startPreset.lat, startPreset.lng);
-                    const endXY = getXY(endPreset.lat, endPreset.lng);
-                    const currentXY = getXY(selectedRoute.current_lat, selectedRoute.current_lng);
-
-                    // De-serialize history coordinates logs
-                    let historyLogs: any[] = [];
-                    try {
-                      historyLogs = typeof selectedRoute.coordinates_history === 'string'
-                        ? JSON.parse(selectedRoute.coordinates_history)
-                        : (selectedRoute.coordinates_history || []);
-                    } catch (e) {
-                      historyLogs = [];
-                    }
-
-                    return (
-                      <div className="space-y-6 animate-in fade-in duration-300">
-                        
-                        {/* HEADER DETAILS CARD */}
-                        <div className="bg-gradient-to-br from-[#0c1c13] through-[#0e2c1a] to-[#0a1710] text-white rounded-3xl p-6 shadow-md border-0 relative overflow-hidden select-none">
-                          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-700/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-                          
-                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-white/10 pb-4 relative z-10">
-                            <div>
-                              <p className="text-[9px] font-extrabold text-amber-400 font-mono tracking-widest uppercase flex items-center space-x-1.5">
-                                <Compass className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '10s' }} />
-                                <span>Painel de Logística Ativo</span>
-                              </p>
-                              <h3 className="text-xl font-extrabold mt-1 tracking-tight text-white">{selectedRoute.driver_name}</h3>
-                              <p className="text-xs text-emerald-300 font-mono font-semibold">{selectedRoute.vehicle_type} — Placa: <strong className="text-amber-400">{selectedRoute.vehicle_plate}</strong></p>
-                            </div>
-
-                            <div className="text-left md:text-right">
-                              <span className="text-[9px] text-emerald-400 font-mono font-bold uppercase tracking-widest block">Rota de Escoamento</span>
-                              <p className="text-sm font-extrabold mt-1 text-slate-100 flex items-center gap-1.5 md:justify-end">
-                                <span>{selectedRoute.start_location.split(' ')[0]}</span>
-                                <span className="text-amber-400 text-xs font-normal">➔</span>
-                                <span>{selectedRoute.destination.split(' ')[0]}</span>
-                              </p>
-                              <span className="text-[10px] text-slate-300 font-mono mt-1 block">Início: {selectedRoute.started_at}</span>
-                            </div>
-                          </div>
-
-                          {/* TELEMETRY READINGS BAR */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 text-center relative z-10">
-                            <div className="bg-emerald-950/40 p-3.5 rounded-2xl border border-emerald-900/50 backdrop-blur-md">
-                              <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest">Velocidade</span>
-                              <p className="text-base font-black text-white mt-1 font-mono tracking-tight">{selectedRoute.speed} <span className="text-[10px] text-zinc-400 font-sans font-normal">km/h</span></p>
-                            </div>
-                            <div className="bg-emerald-950/40 p-3.5 rounded-2xl border border-emerald-900/50 backdrop-blur-md">
-                              <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest">Combustível</span>
-                              <p className="text-base font-black text-amber-400 mt-1 font-mono tracking-tight">{selectedRoute.fuel_level}%</p>
-                            </div>
-                            <div className="bg-emerald-950/40 p-3.5 rounded-2xl border border-emerald-900/50 backdrop-blur-md">
-                              <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest">Carga</span>
-                              <p className="text-[11px] font-extrabold text-white mt-1.5 truncate max-w-[150px] mx-auto italic" title={selectedRoute.cargo_description}>
-                                "{selectedRoute.cargo_description}"
-                              </p>
-                            </div>
-                            <div className="bg-emerald-950/40 p-3.5 rounded-2xl border border-emerald-900/50 backdrop-blur-md">
-                              <span className="text-[9px] text-emerald-400 font-extrabold uppercase tracking-widest">Último Evento</span>
-                              <p className="text-[10px] font-semibold text-slate-200 mt-1 line-clamp-2 leading-tight" title={selectedRoute.last_event}>
-                                "{selectedRoute.last_event}"
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* VECTOR HIGH POLISHED INTERACTIVE MAP */}
-                        <div className="bg-white border border-slate-100/90 rounded-3xl p-5 shadow-sm">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-                            <div>
-                              <h3 className="text-sm font-extrabold text-slate-900 leading-snug">Visualizador de Integração Satélite ({selectedRoute.start_location.split(' ')[0]} ➔ {selectedRoute.destination.split(' ')[0]})</h3>
-                              <p className="text-[10px] text-slate-400 uppercase font-extrabold font-mono tracking-wider mt-0.5">Mapeamento Vetorial Corporativo — Granja Shigueno</p>
-                            </div>
-                            <div className="text-[10px] bg-slate-50 text-slate-700 font-bold px-3.5 py-1.5 rounded-full font-mono flex items-center space-x-1.5 border border-slate-100 self-start sm:self-auto shrink-0 shadow-3xs">
-                              <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                              <span>Coordenadas GPS: {selectedRoute.current_lat.toFixed(5)}, {selectedRoute.current_lng.toFixed(5)}</span>
-                            </div>
-                          </div>
-
-                          <div className="bg-[#0b120d] rounded-2xl overflow-hidden relative border border-slate-900 shadow-inner h-[285px] xs:h-[350px] md:h-[400px]">
-                            <svg className="w-full h-full" viewBox="0 0 750 400">
-                              {/* Grid lines backdrop (Control Center) */}
-                              <pattern id="mapGrid2" width="30" height="30" patternUnits="userSpaceOnUse">
-                                <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#ffffff" strokeWidth="0.5" strokeOpacity="0.04" />
-                              </pattern>
-                              <rect width="100%" height="100%" fill="url(#mapGrid2)" />
-
-                              {/* State boundary indicator rings */}
-                              <circle cx="120" cy="80" r="100" fill="#fbbf24" fillOpacity="0.01" stroke="#fbbf24" strokeOpacity="0.05" strokeDasharray="4,4" />
-                              <text x="50" y="45" fill="#f59e0b" fontSize="9" fontWeight="bold" fontFamily="monospace" opacity="0.3">REGIÃO MATO GROSSO (MT)</text>
-
-                              <circle cx="560" cy="330" r="130" fill="#047857" fillOpacity="0.01" stroke="#047857" strokeOpacity="0.05" strokeDasharray="4,4" />
-                              <text x="590" y="225" fill="#059669" fontSize="9" fontWeight="bold" fontFamily="monospace" opacity="0.3">CENTRAL SÃO PAULO (SP)</text>
-
-                              {/* Interstate connection highway */}
-                              <line x1="120" y1="80" x2="520" y2="300" stroke="#ffffff" strokeWidth="1" strokeOpacity="0.07" strokeDasharray="3,3" />
-
-                              {/* ALL CITIES PRESETS NODES MARKERS */}
-                              {Object.entries(PRESET_COORDS).map(([name, coords]) => {
-                                const xy = getXY(coords.lat, coords.lng);
-                                const isEndpoint = name === selectedRoute.start_location || name === selectedRoute.destination;
-                                return (
-                                  <g key={name} className="cursor-help" opacity={isEndpoint ? 1 : 0.4}>
-                                    <circle 
-                                      cx={xy.x} 
-                                      cy={xy.y} 
-                                      r={isEndpoint ? 6 : 4} 
-                                      fill={name.includes('MT') ? '#fbbf24' : '#10b981'} 
-                                    />
-                                    {isEndpoint && (
-                                      <circle 
-                                        cx={xy.x} 
-                                        cy={xy.y} 
-                                        r={10} 
-                                        fill="none" 
-                                        stroke={name.includes('MT') ? '#fbbf24' : '#10b981'} 
-                                        strokeOpacity="0.4"
-                                        className="animate-ping"
-                                      />
-                                    )}
-                                    <text 
-                                      x={xy.x + 8} 
-                                      y={xy.y + 3} 
-                                      fill="#e2e8f0" 
-                                      fontSize="8" 
-                                      fontWeight="extrabold" 
-                                      fontFamily="sans-serif"
-                                      letterSpacing="0.05em"
-                                    >
-                                      {name}
-                                    </text>
-                                  </g>
-                                );
-                              })}
-
-                              {/* FULL PATH LINE */}
-                              <line 
-                                x1={startXY.x} 
-                                y1={startXY.y} 
-                                x2={endXY.x} 
-                                y2={endXY.y} 
-                                stroke="#10b981" 
-                                strokeWidth="3" 
-                                strokeOpacity="0.12" 
-                              />
-                              <line 
-                                x1={startXY.x} 
-                                y1={startXY.y} 
-                                x2={endXY.x} 
-                                y2={endXY.y} 
-                                stroke="#f59e0b" 
-                                strokeWidth="1.5" 
-                                strokeDasharray="5,5" 
-                                strokeOpacity="0.5" 
-                              />
-
-                              {/* DRIVEN / PROGRESS COMPLETED VECTOR OVERLAY LINE */}
-                              <line 
-                                x1={startXY.x} 
-                                y1={startXY.y} 
-                                x2={currentXY.x} 
-                                y2={currentXY.y} 
-                                stroke="#059669" 
-                                strokeWidth="3.5" 
-                                strokeOpacity="0.75" 
-                              />
-
-                              {/* DRIVER GPS LIVE CORNER */}
-                              <g>
-                                <circle 
-                                  cx={currentXY.x} 
-                                  cy={currentXY.y} 
-                                  r={14} 
-                                  fill="#fbbf24" 
-                                  fillOpacity="0.2" 
-                                  className={selectedRoute.status === 'Ativa' ? 'animate-ping' : ''}
-                                  style={{ animationDuration: '3s' }}
-                                />
-                                <circle 
-                                  cx={currentXY.x} 
-                                  cy={currentXY.y} 
-                                  r={6} 
-                                  fill={selectedRoute.status === 'Ativa' ? '#f59e0b' : '#10b981'} 
-                                  stroke="#ffffff" 
-                                  strokeWidth="1.5"
-                                />
-                              </g>
-                            </svg>
-
-                            {/* HOVER EXPLANATORY BANNER overlay */}
-                            <div className="absolute bottom-3 left-3 right-3 bg-[#0c130f]/90 p-2.5 rounded-xl border border-emerald-950 flex justify-between text-[10px] font-mono text-slate-300">
-                              <span className="flex items-center space-x-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-                                <span>Origem: {selectedRoute.start_location.split(' ')[0]} ({startPreset.lat.toFixed(2)}, {startPreset.lng.toFixed(2)})</span>
-                              </span>
-                              <span>➔</span>
-                              <span>Destino: {selectedRoute.destination.split(' ')[0]} ({endPreset.lat.toFixed(2)}, {endPreset.lng.toFixed(2)})</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* DRIVER SIMULATION PROGRESS CONTROL MODIFERS */}
-                        {selectedRoute.status === 'Ativa' && (
-                          <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm space-y-4">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-50 pb-3">
-                              <div>
-                                <h3 className="text-xs font-bold text-slate-900">Painel Operacional do Motorista</h3>
-                                <p className="text-[10px] text-slate-400">Force atualizações manuais ou simule o comportamento do veículo na pista.</p>
-                              </div>
-                              
-                              <div className="flex items-center space-x-2.5">
-                                <button
-                                  type="button"
-                                  onClick={() => triggerStepProgress(selectedRoute.id, 10)}
-                                  className="px-3.5 py-2 bg-amber-500 hover:bg-amber-600 font-extrabold text-[#0c1c13] rounded-xl text-[10px] transition-all uppercase flex items-center space-x-1.5 cursor-pointer shadow-3xs"
-                                >
-                                  <Play className="w-3.5 h-3.5 shrink-0" />
-                                  <span>Adiantar Rota +10%</span>
-                                </button>
-                                
-                                <button
-                                  type="button"
-                                  onClick={() => triggerStepProgress(selectedRoute.id, 100 - selectedRoute.progress)}
-                                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-950 text-white rounded-xl text-[10px] font-black transition-all uppercase cursor-pointer"
-                                >
-                                  Forçar Chegada Agora
-                                </button>
-                              </div>
-                            </div>
-
-                            <form onSubmit={manualEventReport} className="flex gap-2.5">
-                              <div className="flex-1">
-                                <input
-                                  type="text"
-                                  value={customEventText}
-                                  onChange={(e) => setCustomEventText(e.target.value)}
-                                  placeholder="Ex: Parada técnica para pesagem de carga no pedágio / Posto reabastecido..."
-                                  className="w-full px-4 py-2.5 border border-slate-150 rounded-xl text-xs bg-slate-50/50 text-slate-900 focus:bg-white focus:border-emerald-800 focus:ring-2 focus:ring-emerald-800/10 transition-all font-semibold outline-none"
-                                  required
-                                />
-                              </div>
-                              <button
-                                type="submit"
-                                className="px-5 py-2.5 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold rounded-xl text-xs transition-all hover:shadow-xs cursor-pointer tracking-wider shrink-0 uppercase"
-                              >
-                                Emitir Alerta
-                              </button>
-                            </form>
-                          </div>
-                        )}
-
-                        {/* HISTORICAL COORDINATES ROAD DIARY */}
-                        <div className="bg-white border border-slate-100/90 rounded-3xl p-5 shadow-sm">
-                          <h3 className="text-xs font-bold text-slate-950 uppercase tracking-widest font-mono mb-4 flex items-center space-x-1.5 border-b border-slate-50 pb-3">
-                            <Clock className="w-4 h-4 text-emerald-800" />
-                            <span>Diário de Bordo Geográfico & logs GPS</span>
-                          </h3>
-
-                          <div className="space-y-4 max-h-72 overflow-y-auto pr-2 relative">
-                            {historyLogs.length === 0 ? (
-                              <p className="text-xs text-slate-400 italic py-6 text-center">Aguardando pings de telemetria satélite.</p>
-                            ) : (
-                              [...historyLogs].reverse().map((log, lidx) => (
-                                <div key={lidx} className="flex items-start space-x-4 text-xs font-sans border-l border-emerald-800/20 pl-4 py-1.5 relative">
-                                  {/* Milestone node bubble indicator */}
-                                  <div className="absolute -left-[5px] top-2 my-0.5 w-2 h-2 rounded-full bg-white border-2 border-emerald-800 flex items-center justify-center">
-                                    <div className="w-1 h-1 rounded-full bg-emerald-800" />
-                                  </div>
-                                  
-                                  <div className="flex-1">
-                                    <div className="flex justify-between items-start gap-4">
-                                      <p className="font-bold text-slate-900 text-xs">{log.event || 'Sinal de telemetria transmitido com sucesso.'}</p>
-                                      <span className="text-[9px] text-slate-400 font-mono font-bold shrink-0">{log.time}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-3.5 mt-1 text-[10px] font-mono text-slate-500 font-semibold">
-                                      <span>LatLng: {Number(log.lat).toFixed(4)}, {Number(log.lng).toFixed(4)}</span>
-                                      <span>•</span>
-                                      <span>Velocidade registrada: <strong className="text-emerald-900">{log.speed || 0} km/h</strong></span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-
-                      </div>
-                    );
-                  })()}
-                </div>
-
-              </div>
+                  });
+                }}
+                onDeleteRoute={deleteRoute}
+                onTriggerProgress={triggerStepProgress}
+                onManualEvent={(_e, text) => {
+                  if (!selectedRouteId || !text.trim()) return;
+                  const cur = routes.find(r => r.id === selectedRouteId);
+                  if (!cur) return;
+                  fetch(`/api/routes/${selectedRouteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ last_event: text, event_occurred: text })
+                  }).then(r => r.json()).then(d => {
+                    if (d.success) fetch('/api/routes').then(r => r.json()).then(fd => {
+                      if (fd.success) setRoutes(fd.routes || []);
+                    });
+                  });
+                }}
+              />
             )}
 
             {/* SUBTAB 6: DADOS E DIVULGAÇÃO DA INSTITUIÇÃO */}

@@ -51,6 +51,11 @@ router.get('/candidates', async (_req: Request, res: Response) => {
 router.post('/candidates', upload.single('cv_file'), async (req: Request, res: Response) => {
   try {
     const { name, email, phone, vacancy_id, cv_text } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ success: false, error: 'Nome e e-mail são obrigatórios.' });
+    }
+
     const db = await getDb();
     const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
 
@@ -59,14 +64,15 @@ router.post('/candidates', upload.single('cv_file'), async (req: Request, res: R
 
     const result = await db.run(
       'INSERT INTO candidates (name, email, phone, vacancy_id, cv_text, cv_file_path, cv_filename, applied_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, email, phone, vacancy_id || null, cv_text || null, cvFilePath, cvFilename, now, 'Novo']
+      [name, email, phone || null, vacancy_id ? Number(vacancy_id) : null, cv_text || null, cvFilePath, cvFilename, now, 'Novo']
     );
 
     // Sync para o RH Vision
-    syncCandidateToRhVision({ name, email, phone, cv_text: cv_text || '' }, vacancy_id || null);
+    syncCandidateToRhVision({ name, email, phone: phone || '', cv_text: cv_text || '' }, vacancy_id || null);
 
     res.json({ success: true, id: result.lastID, message: 'Currículo enviado com sucesso! Agradecemos o interesse.' });
   } catch (error: any) {
+    console.error('[POST /api/candidates] erro:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
