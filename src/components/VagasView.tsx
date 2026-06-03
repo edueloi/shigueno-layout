@@ -23,6 +23,10 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
   const [submittedMessage, setSubmittedMessage] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Paginação
+  const PAGE_SIZE = 6;
+  const [currentPage, setCurrentPage] = React.useState(1);
+
   const localizedTexts = {
     pt: {
       bannerTag: "Trabalhe Conosco",
@@ -271,8 +275,13 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
                 {tView.loadingText}
               </div>
             ) : vacancies.length > 0 ? (
+              (() => {
+                const totalPages = Math.ceil(vacancies.length / PAGE_SIZE);
+                const paginated = vacancies.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+                return (
+              <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4">
-                {vacancies.map((v) => (
+                {paginated.map((v) => (
                   <div
                     key={v.id}
                     id={`vacancy-card-${v.id}`}
@@ -315,6 +324,48 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
                   </div>
                 ))}
               </div>
+
+              {/* Paginação */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4">
+                  <button
+                    onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); setSelectedVacancy(null); }}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-sans"
+                  >
+                    ← Anterior
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                    <button
+                      key={p}
+                      onClick={() => { setCurrentPage(p); setSelectedVacancy(null); }}
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-all font-sans ${
+                        currentPage === p
+                          ? 'bg-emerald-800 text-white shadow-sm'
+                          : 'border border-slate-200 text-slate-600 hover:border-emerald-400 hover:text-emerald-800'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+
+                  <button
+                    onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); setSelectedVacancy(null); }}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-emerald-400 hover:text-emerald-800 disabled:opacity-30 disabled:cursor-not-allowed transition-all font-sans"
+                  >
+                    Próxima →
+                  </button>
+                </div>
+              )}
+
+              <p className="text-center text-xs text-slate-400 font-sans">
+                Mostrando {Math.min(PAGE_SIZE, vacancies.length - (currentPage - 1) * PAGE_SIZE)} de {vacancies.length} vagas · Página {currentPage} de {totalPages}
+              </p>
+              </div>
+              );
+              })()
             ) : (
               <div className="bg-slate-50 border border-slate-150 rounded-2xl p-10 text-center space-y-4">
                 <Briefcase className="w-12 h-12 text-slate-400 mx-auto" />
