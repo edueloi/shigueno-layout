@@ -39,6 +39,8 @@ async function startServer() {
   app.use('/api', authMiddleware);
 
   // --- API ROUTE MOUNTING ---
+  // RH Vision webhook ANTES de qualquer middleware de autenticação por API Key
+  app.use('/api', rhVisionPushRouter);
   app.use('/api', siteSettingsRouter);
   app.use('/api', authRouter);
   app.use('/api', vacanciesRouter);
@@ -51,7 +53,6 @@ async function startServer() {
   app.use('/api', chatbotRouter);
   app.use('/api', integrationRouter);
   app.use('/api', integrationAdminRouter);
-  app.use('/api', rhVisionPushRouter);
 
   // Image proxy route for Sr. Haruo Shigueno's original image (avoids Mixed Content HTTP block in browser HTTPS iframe)
   app.get('/api/haruo-image', async (req, res) => {
