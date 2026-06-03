@@ -33,6 +33,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
+  // 3e. RH Vision webhook routes use their own X-Webhook-Secret auth
+  if (path.includes('/rh-vision/')) {
+    return next();
+  }
+
   // 4. Validate authentication token for administrative mutations
   const token = req.headers.authorization || req.headers['x-shigueno-token'];
 
