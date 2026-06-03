@@ -25,8 +25,8 @@ router.post('/site-settings', async (req, res) => {
     const updates = req.body;
     for (const [key, value] of Object.entries(updates)) {
       await db.run(
-        'INSERT INTO site_settings (key, value) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-        [key, value]
+        'INSERT INTO site_settings (`key`, value) VALUES (?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
+        [key, String(value)]
       );
     }
     res.json({ success: true, message: 'Configurações atualizadas com sucesso.' });

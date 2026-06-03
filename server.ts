@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -17,13 +18,19 @@ import routesRouter from './server/routes/routes.routes';
 import blogRouter from './server/routes/blog.routes';
 import activitiesRouter from './server/routes/activities.routes';
 import chatbotRouter from './server/routes/chatbot.routes';
+import integrationRouter from './server/routes/integration.routes';
+import integrationAdminRouter from './server/routes/integration-admin.routes';
+import rhVisionPushRouter from './server/routes/rh-vision-push.routes';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = 3008;
 
   // Global request logging middleware
   app.use(requestLogger);
+
+  // Serve local images folder
+  app.use('/images', express.static(path.join(process.cwd(), 'images')));
 
   // Middleware to parse JSON bodies
   app.use(express.json());
@@ -42,6 +49,9 @@ async function startServer() {
   app.use('/api', blogRouter);
   app.use('/api', activitiesRouter);
   app.use('/api', chatbotRouter);
+  app.use('/api', integrationRouter);
+  app.use('/api', integrationAdminRouter);
+  app.use('/api', rhVisionPushRouter);
 
   // Image proxy route for Sr. Haruo Shigueno's original image (avoids Mixed Content HTTP block in browser HTTPS iframe)
   app.get('/api/haruo-image', async (req, res) => {

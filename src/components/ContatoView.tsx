@@ -472,7 +472,7 @@ export default function ContatoView({ siteSettings }: ContatoViewProps) {
 
           <div className="pt-5 border-t border-slate-200/60">
             <a
-              href="https://www.google.com/maps/search/?api=1&query=Granja+Shigueno+Tatu%C3%AD+-+SP"
+              href="https://www.google.com/maps?q=-23.3980,-47.9120"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center text-xs font-bold text-emerald-800 hover:text-emerald-950 transition-colors"
@@ -498,7 +498,7 @@ export default function ContatoView({ siteSettings }: ContatoViewProps) {
           )}
           <iframe
             id="gmap_canvas"
-            src="https://maps.google.com/maps?q=Granja%20Shigueno,%20Tatu%C3%AD%20-%20SP&t=&z=14&ie=UTF8&iwloc=&output=embed"
+            src="https://maps.google.com/maps?q=-23.3980,-47.9120&t=&z=15&ie=UTF8&iwloc=&output=embed"
             frameBorder="0"
             scrolling="no"
             marginHeight={0}

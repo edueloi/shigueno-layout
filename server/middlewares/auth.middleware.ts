@@ -28,6 +28,11 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     return next();
   }
 
+  // 3d. Integration routes use their own API Key auth — bypass this middleware
+  if (path.includes('/integration/')) {
+    return next();
+  }
+
   // 4. Validate authentication token for administrative mutations
   const token = req.headers.authorization || req.headers['x-shigueno-token'];
 

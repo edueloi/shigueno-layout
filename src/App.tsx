@@ -12,8 +12,30 @@ import BlogView from './components/BlogView';
 import ChatbotWidget from './components/ChatbotWidget';
 import { SiteSettings } from './types';
 
+// ── URL ↔ view mapping ────────────────────────────────────────────────────────
+const ROUTE_MAP: Record<string, string> = {
+  '/':          'home',
+  '/sobre':     'sobre',
+  '/producao':  'produtos',
+  '/blog':      'blog',
+  '/vagas':     'vagas',
+  '/contato':   'contato',
+  '/portal':    'login',
+  '/admin':     'admin',
+};
+const VIEW_TO_PATH: Record<string, string> = Object.fromEntries(
+  Object.entries(ROUTE_MAP).map(([k, v]) => [v, k])
+);
+
+function pathToView(path: string): string {
+  const clean = path.length > 1 ? path.replace(/\/$/, '') : path;
+  // /admin with any hash → admin view
+  if (clean === '/admin' || clean.startsWith('/admin#')) return 'admin';
+  return ROUTE_MAP[clean] || 'home';
+}
+
 export default function App() {
-  const [currentView, setCurrentView] = React.useState<string>('home');
+  const [currentView, setCurrentView] = React.useState<string>(() => pathToView(window.location.pathname));
   const [isLoggedIn, setIsLoggedIn] = React.useState<boolean>(false);
   const [user, setUser] = React.useState<any>(null);
   const [siteSettings, setSiteSettings] = React.useState<Record<string, string>>({});
@@ -21,7 +43,7 @@ export default function App() {
   const [showSplash, setShowSplash] = React.useState<boolean>(false);
   const [isFadingOut, setIsFadingOut] = React.useState<boolean>(false);
 
-  // Verify persistent admin session of Shigueno local storage on mount
+  // Restore session + settings on mount
   React.useEffect(() => {
     const savedUser = localStorage.getItem('shigueno_user');
     const savedToken = localStorage.getItem('shigueno_token');
@@ -32,35 +54,52 @@ export default function App() {
     fetchSettings();
   }, []);
 
+  // Sync URL → view on browser back/forward
+  React.useEffect(() => {
+    const onPop = () => {
+      setCurrentView(pathToView(window.location.pathname));
+      window.scrollTo({ top: 0, behavior: 'instant' as any });
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Update document title per route
+  React.useEffect(() => {
+    const titles: Record<string, string> = {
+      home:     'Grupo Shigueno — Qualidade de Vida desde 1932',
+      sobre:    'Sobre Nós | Grupo Shigueno',
+      produtos: 'Nossa Produção | Grupo Shigueno',
+      blog:     'Blog | Grupo Shigueno',
+      vagas:    'Trabalhe Conosco | Grupo Shigueno',
+      contato:  'Contatos | Grupo Shigueno',
+      login:    'Portal do Gestor | Grupo Shigueno',
+      admin:    'Painel Administrativo | Grupo Shigueno',
+    };
+    document.title = titles[currentView] || 'Grupo Shigueno';
+  }, [currentView]);
+
   const fetchSettings = async () => {
     try {
       const res = await fetch('/api/site-settings');
       const data = await res.json();
-      if (data.success) {
-        setSiteSettings(data.config || {});
-      }
+      if (data.success) setSiteSettings(data.config || {});
     } catch (e) {
-      console.error('Falha ao carregar configurações da página do SQLite:', e);
+      console.error('Falha ao carregar configurações:', e);
     }
   };
 
   const handleLoginSuccess = (userData: any, token: string) => {
     localStorage.setItem('shigueno_user', JSON.stringify(userData));
     localStorage.setItem('shigueno_token', token);
-    
-    // Trigger spectacular dark-emerald secure portal loading transition
     setShowSplash(true);
     setIsFadingOut(false);
-    
-    setTimeout(() => {
-      setIsFadingOut(true);
-    }, 1900);
-    
+    setTimeout(() => setIsFadingOut(true), 1900);
     setTimeout(() => {
       setShowSplash(false);
       setUser(userData);
       setIsLoggedIn(true);
-      setCurrentView('admin'); // Gently transition to admin dashboard
+      navigateTo('admin');
     }, 2350);
   };
 
@@ -69,17 +108,18 @@ export default function App() {
     localStorage.removeItem('shigueno_token');
     setUser(null);
     setIsLoggedIn(false);
-    setCurrentView('home');
+    navigateTo('home');
   };
 
-  const handleNavigation = (viewKey: string, tab?: any) => {
-    if (viewKey === 'produtos' && tab) {
-      setActiveProductTab(tab);
-    }
+  const navigateTo = (viewKey: string, tab?: any) => {
+    if (viewKey === 'produtos' && tab) setActiveProductTab(tab);
+    const path = VIEW_TO_PATH[viewKey] || '/';
+    window.history.pushState({ view: viewKey }, '', path);
     setCurrentView(viewKey);
-    // Smooth scroll to top of view on tab switch
     window.scrollTo({ top: 0, behavior: 'instant' as any });
   };
+
+  const handleNavigation = navigateTo;
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50/50 text-slate-800 font-sans selection:bg-emerald-200">
@@ -99,24 +139,9 @@ export default function App() {
             <div className="absolute w-56 h-56 border border-dashed border-emerald-500/20 rounded-full animate-spin-slow"></div>
             <div className="absolute w-64 h-64 border border-dashed border-amber-500/15 rounded-full animate-pulse-glow"></div>
             
-            {/* Visual Emblem Representation of Shigueno (Scaled Up & Animated) */}
-            <div className="relative w-32 h-32 bg-emerald-850 rounded-b-3xl rounded-t-xl border-4 border-amber-550 flex flex-col items-center justify-center shadow-[0_0_40px_rgba(4,120,87,0.3)] overflow-hidden animate-bounce-soft">
-              {/* Oranges & Eggs pure CSS simulation */}
-              <div className="flex space-x-1.5 justify-center mt-3 scale-110">
-                <span className="w-8 h-8 rounded-full bg-amber-550 block relative shadow">
-                  <span className="absolute -top-1 right-2 w-3 h-2 bg-green-600 rounded-full rotate-45"></span>
-                </span>
-                <span className="w-8 h-8 rounded-full bg-amber-550 block relative shadow">
-                  <span className="absolute -top-1 right-2 w-3 h-2 bg-green-600 rounded-full rotate-45"></span>
-                </span>
-              </div>
-              {/* White Eggs */}
-              <div className="flex space-x-1 justify-center -mt-2.5 z-10 scale-110">
-                <span className="w-4.5 h-6.5 bg-white rounded-full block shadow-xs border border-gray-100"></span>
-                <span className="w-4.5 h-6.5 bg-white rounded-full block shadow-xs border border-gray-100"></span>
-                <span className="w-4.5 h-6.5 bg-white rounded-full block shadow-xs border border-gray-100"></span>
-              </div>
-              <span className="text-[10px] font-mono font-black tracking-widest text-emerald-100 mt-2 uppercase">1932</span>
+            {/* Logo Shigueno */}
+            <div className="relative w-32 h-32 flex items-center justify-center animate-bounce-soft drop-shadow-[0_0_30px_rgba(4,120,87,0.4)]">
+              <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-full h-full object-contain" />
             </div>
 
             {/* Typography pair */}
@@ -142,8 +167,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Central Header Navigation - Hidden in Admin Panel layout */}
-      {currentView !== 'admin' && (
+      {/* Central Header Navigation - Hidden in Admin Panel and Login */}
+      {currentView !== 'admin' && currentView !== 'login' && (
         <Header 
           currentView={currentView} 
           onNavigate={handleNavigation} 
@@ -185,7 +210,7 @@ export default function App() {
       </main>
 
       {/* Central Footer copyright and coordinates */}
-      {currentView !== 'admin' && (
+      {currentView !== 'admin' && currentView !== 'login' && (
         <Footer onNavigate={handleNavigation} siteSettings={siteSettings} />
       )}
 

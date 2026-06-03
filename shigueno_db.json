@@ -11,7 +11,7 @@
   "vacancies": [
     {
       "id": 1,
-      "title": "Tratorista Agrícola",
+      "title": "Tratorista Agrícola teste",
       "department": "Citricultura",
       "description": "Responsável pelo manejo de tratores e implementos nos pomares de citros, pulverização e preparação do solo na Fazenda Nova Aliança.",
       "location": "Tatuí - SP",
@@ -43,6 +43,15 @@
       "description": "Operar os maquinários de classificação eletrônica, garantindo a divisão precisa entre as classificações Super Extra (Jumbo), Extra, Grande, Médio, Pequeno e Industrial.",
       "location": "Tatuí - SP",
       "requirements": "Ensino médio completo, facilidade com painéis de controle, foco em detalhes e boas práticas de higiene alimentar.",
+      "status": "Ativa"
+    },
+    {
+      "id": 5,
+      "title": "Pedreiro",
+      "department": "Serviços Gerais",
+      "description": "para tudo",
+      "location": "Tatuí - SP",
+      "requirements": "algo",
       "status": "Ativa"
     }
   ],
@@ -259,6 +268,48 @@
       "bio": "Mestre em solos e nutrição de plantas. Coordenador de adubação sustentável na Fazenda Nova Aliança.",
       "instagram": "@lucasmendes.agro",
       "avatar_url": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    }
+  ],
+  "activities": [
+    {
+      "id": 1,
+      "title": "Comprar ração balanceada para postura",
+      "description": "Cotação de 15 toneladas de ração mineralizada com fornecedores parceiros da região de Sorocaba.",
+      "category": "Compras",
+      "status": "A Fazer",
+      "priority": "Alta",
+      "responsible": "Gisela Shigueno",
+      "due_date": "2026-06-10"
+    },
+    {
+      "id": 2,
+      "title": "Revisar bicos de pulverização (tratores da laranja)",
+      "description": "Manutenção preventiva periódica dos equipamentos de pulverização agrícola para evitar perdas.",
+      "category": "Ações",
+      "status": "Em Progresso",
+      "priority": "Média",
+      "responsible": "Haruo Jr. Shigueno",
+      "due_date": "2026-06-05"
+    },
+    {
+      "id": 3,
+      "title": "Contratar Tratorista Especialista para Itaí",
+      "description": "Processo seletivo aberto para contratação urgente de piloto de maquinário John Deere.",
+      "category": "Contratações Gerais",
+      "status": "Concluído",
+      "priority": "Alta",
+      "responsible": "RH Shigueno",
+      "due_date": "2026-05-28"
+    },
+    {
+      "id": 4,
+      "title": "Pagamento de fornecedor de caixas/embalagens de papelão",
+      "description": "Efetuar a liquidação das notas fiscais da Tecnocarton de Sorocaba sobre embalagens de ovos Shigueno.",
+      "category": "Financeiro",
+      "status": "A Fazer",
+      "priority": "Alta",
+      "responsible": "Roberto Shigueno",
+      "due_date": "2026-06-03"
     }
   ]
 }

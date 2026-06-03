@@ -259,15 +259,10 @@ export default function SobreView({ siteSettings }: SobreViewProps) {
         >
           <div className="relative bg-amber-50/70 p-4 rounded-3xl border-2 border-amber-100 shadow-md max-w-xs w-full transition-transform hover:scale-[1.02] duration-300">
             <div className="overflow-hidden rounded-2xl bg-slate-100 border border-amber-200">
-              <img 
-                src="/api/haruo-image" 
-                alt="Sr. Haruo Shigueno" 
-                referrerPolicy="no-referrer"
+              <img
+                src="/images/haruo.jpg"
+                alt="Sr. Haruo Shigueno"
                 className="w-full aspect-[4/5] object-cover filter brightness-[102%] contrast-[101%] transition-transform duration-700 hover:scale-105"
-                onError={(e) => {
-                  e.currentTarget.onerror = null;
-                  e.currentTarget.src = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80"; // safe backup professional portrait
-                }}
               />
             </div>
             

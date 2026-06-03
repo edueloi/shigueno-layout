@@ -47,9 +47,57 @@ const getAiData = (candidate: any) => {
   return candidate.ai_analysis;
 };
 
+// ── Admin sub-route mapping ────────────────────────────────────────────────────
+type SubTab = 'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'tracking' | 'blog' | 'settings';
+
+const ADMIN_HASH: Record<string, SubTab> = {
+  '#dashboard':   'reports',
+  '#atividades':  'suppliers',
+  '#rastreamento':'tracking',
+  '#blog':        'blog',
+  '#vagas':       'vacancies',
+  '#candidatos':  'candidates',
+  '#configuracoes':'settings',
+};
+const TAB_TO_HASH: Record<SubTab, string> = {
+  reports:    '/admin#dashboard',
+  suppliers:  '/admin#atividades',
+  tracking:   '/admin#rastreamento',
+  blog:       '/admin#blog',
+  vacancies:  '/admin#vagas',
+  candidates: '/admin#candidatos',
+  settings:   '/admin#configuracoes',
+};
+const TAB_TITLES: Record<SubTab, string> = {
+  reports:    'Dashboard | Painel Shigueno',
+  suppliers:  'Atividades | Painel Shigueno',
+  tracking:   'Rastreamento | Painel Shigueno',
+  blog:       'Blog | Painel Shigueno',
+  vacancies:  'Vagas | Painel Shigueno',
+  candidates: 'Candidatos | Painel Shigueno',
+  settings:   'Configurações | Painel Shigueno',
+};
+
+function hashToTab(): SubTab {
+  return ADMIN_HASH[window.location.hash] || 'reports';
+}
+
 export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: AdminPanelProps) {
-  const [activeSubTab, setActiveSubTab] = React.useState<'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'tracking' | 'blog' | 'settings'>('reports');
+  const [activeSubTab, setActiveSubTab] = React.useState<SubTab>(hashToTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+
+  // Sync hash → tab (browser back/forward)
+  React.useEffect(() => {
+    const onHash = () => setActiveSubTab(hashToTab());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Sync tab → URL + title
+  React.useEffect(() => {
+    window.history.replaceState(null, '', TAB_TO_HASH[activeSubTab]);
+    document.title = TAB_TITLES[activeSubTab];
+  }, [activeSubTab]);
 
   // Authenticated fetch helper to pass security middleware
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -1076,9 +1124,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
         {/* SIDEBAR HEADER / BRANDING */}
         <div className="p-6 border-b border-emerald-900/60 bg-[#06150c] flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <span className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-emerald-950 font-black text-sm tracking-tight shadow-md select-none">
-              S
-            </span>
+            <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-8 h-8 object-contain" />
             <div>
               <h2 className="font-extrabold text-amber-500 text-xs uppercase tracking-widest leading-none">Grupo Shigueno</h2>
               <span className="text-[10px] text-emerald-300 font-bold uppercase font-mono mt-1 block">Painel do Gestor</span>
@@ -1136,7 +1182,9 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
               <button
                 key={item.key}
                 onClick={() => {
-                  setActiveSubTab(item.key as any);
+                  const tab = item.key as SubTab;
+                  window.history.pushState(null, '', TAB_TO_HASH[tab]);
+                  setActiveSubTab(tab);
                   setMobileSidebarOpen(false);
                 }}
                 className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
@@ -2798,9 +2846,21 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
 
                     {/* Parsing text CV content */}
                     <div className="space-y-1.5 text-left">
-                      <p className="text-xs font-bold text-slate-700 uppercase">Resumo da Experiência / Texto do Currículo:</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-bold text-slate-700 uppercase">Resumo da Experiência / Texto do Currículo:</p>
+                        {viewingCandidate.cv_filename && (
+                          <a
+                            href={`/api/candidates/${viewingCandidate.id}/cv`}
+                            download={viewingCandidate.cv_filename}
+                            className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg hover:bg-emerald-100 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
+                            Baixar CV Anexado
+                          </a>
+                        )}
+                      </div>
                       <div className="bg-white border-0 rounded-2xl p-4 text-xs font-mono whitespace-pre-wrap leading-relaxed text-slate-650 h-40 overflow-y-auto">
-                        {viewingCandidate.cv_text}
+                        {viewingCandidate.cv_text || (viewingCandidate.cv_filename ? `Arquivo anexado: ${viewingCandidate.cv_filename}` : '—')}
                       </div>
                     </div>
 

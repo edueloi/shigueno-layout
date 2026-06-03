@@ -797,7 +797,7 @@ export default function BlogView() {
             {/* Loader */}
             {isLoading ? (
               <div className="bg-white rounded-3xl p-16 border border-emerald-50 text-center shadow-sm">
-                <div className="inline-block w-8 h-8 rounded-full border-4 border-emerald-800/20 border-t-emerald-800 animate-spin mb-4" />
+                <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-16 h-16 object-contain mx-auto mb-4 animate-pulse" />
                 <p className="text-sm font-semibold text-slate-500 font-mono tracking-wide">{tView.loadingDb}</p>
               </div>
             ) : filteredPosts.length === 0 ? (

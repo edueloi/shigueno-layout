@@ -108,24 +108,9 @@ export default function Header({ currentView, onNavigate, isLoggedIn, onLogout, 
             className="flex items-center space-x-3 cursor-pointer select-none group"
             id="shigueno-logo-button"
           >
-            {/* Visual Emblem Representation of Shigueno */}
-            <div className="relative w-12 h-12 bg-emerald-800 rounded-b-2xl rounded-t-lg border-2 border-emerald-600 flex flex-col items-center justify-center shadow-md overflow-hidden group-hover:scale-105 transition-transform">
-              {/* Oranges & Eggs pure CSS simulation */}
-              <div className="flex space-x-0.5 justify-center mt-1">
-                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 block relative">
-                  <span className="absolute -top-0.5 right-1 w-1.5 h-1 bg-green-600 rounded-full rotate-45"></span>
-                </span>
-                <span className="w-3.5 h-3.5 rounded-full bg-amber-500 block relative">
-                  <span className="absolute -top-0.5 right-1 w-1.5 h-1 bg-green-600 rounded-full rotate-45"></span>
-                </span>
-              </div>
-              {/* White Eggs */}
-              <div className="flex space-x-0.5 justify-center -mt-1 z-10">
-                <span className="w-2 h-3 bg-white rounded-full block shadow-xs border border-gray-150"></span>
-                <span className="w-2 h-3 bg-white rounded-full block shadow-xs border border-gray-150"></span>
-                <span className="w-2 h-3 bg-white rounded-full block shadow-xs border border-gray-150"></span>
-              </div>
-              <span className="text-[7px] font-mono font-bold tracking-widest text-[#f5f5f5] mt-1 uppercase">1932</span>
+            {/* Logo Shigueno */}
+            <div className="w-12 h-12 group-hover:scale-105 transition-transform">
+              <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-full h-full object-contain" />
             </div>
 
             <div>

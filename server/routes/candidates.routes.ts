@@ -1,14 +1,42 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { getDb } from '../../server-db';
 import { GoogleGenAI } from '@google/genai';
+import { syncCandidateToRhVision } from '../services/rh-vision-sync';
 
 const router = Router();
 
-router.get('/candidates', async (req, res) => {
+// ── Upload de CV (PDF / DOC / DOCX — máx 10 MB) ──────────────────────────────
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads', 'cv');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (_req, file, cb) => {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    cb(null, `${Date.now()}_${safe}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    cb(new Error('Formato inválido. Use PDF, DOC ou DOCX.'));
+  }
+});
+
+// GET /api/candidates — listar todos
+router.get('/candidates', async (_req: Request, res: Response) => {
   try {
     const db = await getDb();
     const candidates = await db.all(`
-      SELECT c.*, v.title as vacancy_title 
+      SELECT c.*, v.title as vacancy_title
       FROM candidates c
       LEFT JOIN vacancies v ON c.vacancy_id = v.id
       ORDER BY c.applied_at DESC
@@ -19,17 +47,23 @@ router.get('/candidates', async (req, res) => {
   }
 });
 
-router.post('/candidates', async (req, res) => {
+// POST /api/candidates — candidatura com upload opcional de arquivo
+router.post('/candidates', upload.single('cv_file'), async (req: Request, res: Response) => {
   try {
     const { name, email, phone, vacancy_id, cv_text } = req.body;
     const db = await getDb();
-    const now = new Date();
-    const formattedDate = now.toISOString().replace('T', ' ').slice(0, 19);
+    const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+
+    const cvFilePath = req.file ? req.file.path : null;
+    const cvFilename = req.file ? req.file.originalname : null;
 
     const result = await db.run(
-      'INSERT INTO candidates (name, email, phone, vacancy_id, cv_text, applied_at, status) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, email, phone, vacancy_id || null, cv_text, formattedDate, 'Novo']
+      'INSERT INTO candidates (name, email, phone, vacancy_id, cv_text, cv_file_path, cv_filename, applied_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, email, phone, vacancy_id || null, cv_text || null, cvFilePath, cvFilename, now, 'Novo']
     );
+
+    // Sync para o RH Vision
+    syncCandidateToRhVision({ name, email, phone, cv_text: cv_text || '' }, vacancy_id || null);
 
     res.json({ success: true, id: result.lastID, message: 'Currículo enviado com sucesso! Agradecemos o interesse.' });
   } catch (error: any) {
@@ -37,7 +71,25 @@ router.post('/candidates', async (req, res) => {
   }
 });
 
-router.put('/candidates/:id', async (req, res) => {
+// GET /api/candidates/:id/cv — download do arquivo de CV
+router.get('/candidates/:id/cv', async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    const candidate = await db.get('SELECT cv_file_path, cv_filename FROM candidates WHERE id = ?', [req.params.id]) as any;
+    if (!candidate?.cv_file_path) {
+      return res.status(404).json({ success: false, error: 'Arquivo não encontrado.' });
+    }
+    if (!fs.existsSync(candidate.cv_file_path)) {
+      return res.status(404).json({ success: false, error: 'Arquivo removido do servidor.' });
+    }
+    res.download(candidate.cv_file_path, candidate.cv_filename || 'curriculo.pdf');
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/candidates/:id — atualizar status
+router.put('/candidates/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -49,130 +101,66 @@ router.put('/candidates/:id', async (req, res) => {
   }
 });
 
-router.post('/candidates/:id/evaluate', async (req, res) => {
+// POST /api/candidates/:id/evaluate — avaliação IA Gemini
+router.post('/candidates/:id/evaluate', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = await getDb();
-    
-    // Fetch Candidate
-    const candidate = await db.get('SELECT * FROM candidates WHERE id = ?', [id]);
-    if (!candidate) {
-      return res.status(404).json({ success: false, error: 'Candidato não encontrado.' });
-    }
 
-    // Fetch vacancy information
+    const candidate = await db.get('SELECT * FROM candidates WHERE id = ?', [id]) as any;
+    if (!candidate) return res.status(404).json({ success: false, error: 'Candidato não encontrado.' });
+
     let vacancyInfo = 'Candidatura espontânea / Banco de talentos';
     if (candidate.vacancy_id) {
-      const vacancy = await db.get('SELECT * FROM vacancies WHERE id = ?', [candidate.vacancy_id]);
+      const vacancy = await db.get('SELECT * FROM vacancies WHERE id = ?', [candidate.vacancy_id]) as any;
       if (vacancy) {
-        vacancyInfo = `Vaga: ${vacancy.title}\nDepartamento: ${vacancy.department}\nDescrição da Vaga: ${vacancy.description}\nRequisitos: ${vacancy.requirements}`;
+        vacancyInfo = `Vaga: ${vacancy.title}\nDepartamento: ${vacancy.department}\nDescrição: ${vacancy.description}\nRequisitos: ${vacancy.requirements}`;
       }
     }
 
-    // Fetch other active vacancies
-    const activeVacancies = await db.all('SELECT * FROM vacancies WHERE status = "Ativa"');
-    const vacanciesListStr = activeVacancies.map((v: any) => `- ID ${v.id}: ${v.title} (${v.department}) - Requisitos: ${v.requirements}`).join('\n');
+    const activeVacancies = await db.all("SELECT * FROM vacancies WHERE status = 'Ativa'");
+    const vacanciesListStr = activeVacancies.map((v: any) => `- ID ${v.id}: ${v.title} (${v.department})`).join('\n');
 
     let aiRawResponse = '';
     const geminiKey = process.env.GEMINI_API_KEY;
 
     if (geminiKey) {
-      const ai = new GoogleGenAI({
-        apiKey: geminiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
-      const systemPrompt = `Você é um Recrutador de Recursos Humanos Especialista do Grupo Shigueno, uma empresa familiar tradicional brasileira de agronegócio de alta qualidade, ativa em Tatuí, Buri, Itaí e Mato Grosso.
-Analise detalhadamente o currículo fornecido e produza uma triagem profissional. Avalie a aderência técnica e comportamental com a vaga almejada e cruze com as demais oportunidades ativas da empresa.
-
-Sua resposta DEVE ser estritamente no formato JSON estruturado com o seguinte esquema exato de chaves (sem formatação markdown envolta, apenas JSON puro e válido):
-{
-  "score": 0 a 100 (número inteiro da aderência),
-  "summary": "Um breve parágrafo resumindo as competências principais encontradas no currículo",
-  "strengths": ["Item 1 de diferencial relevante", "Item 2", "Item 3"],
-  "gaps": ["Ponto de melhoria ou pré-requisito faltante 1", "Ponto 2"],
-  "recommendations": "Próximos passos recomendados (ex: prosseguir entrevista, realocar, aguardar novas vagas)",
-  "matchingVacancies": ["Nomes de vagas recomendadas adicionais que se adequam"],
-  "questions": ["Pergunta 1 focada no perfil", "Pergunta 2 focada na rotina de campo", "Pergunta 3 sobre experiência prévia"]
-}`;
-
-      const userPrompt = `DADOS DO CANDIDATO:
-Nome: ${candidate.name}
-Vaga Almejada original: ${vacancyInfo}
-
-TEXTO DO CURRÍCULO:
-"""
-${candidate.cv_text}
-"""
-
-OUTRAS VAGAS ATIVAS NO GRUPO SHIGUENO:
-${vacanciesListStr}
-
-Escreva uma triagem atenciosa, focada em produtividade rural consciente e boas práticas agrícolas. Retorne estritamente o JSON descrito.`;
-
+      const ai = new GoogleGenAI({ apiKey: geminiKey, httpOptions: { headers: { 'User-Agent': 'aistudio-build' } } });
       const aiResponse = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: userPrompt,
+        model: 'gemini-3.5-flash',
+        contents: `CANDIDATO: ${candidate.name}\nVAGA: ${vacancyInfo}\nCURRÍCULO:\n${candidate.cv_text}\n\nVAGAS ATIVAS:\n${vacanciesListStr}`,
         config: {
-          systemInstruction: systemPrompt,
-          responseMimeType: "application/json",
+          systemInstruction: 'Você é recrutador do Grupo Shigueno. Analise o currículo e retorne JSON puro com: score (0-100), summary, strengths (array), gaps (array), recommendations, matchingVacancies (array), questions (array).',
+          responseMimeType: 'application/json',
           temperature: 0.15,
         }
       });
-
       aiRawResponse = aiResponse.text || '{}';
     } else {
-      // Sophisticated offline fallback when there's no GEMINI_API_KEY configured yet
-      const matchScore = candidate.cv_text.toLowerCase().includes('trator') || candidate.cv_text.toLowerCase().includes('operador') ? 85
-                         : candidate.cv_text.toLowerCase().includes('nelore') || candidate.cv_text.toLowerCase().includes('gado') ? 90
-                         : candidate.cv_text.toLowerCase().includes('granja') || candidate.cv_text.toLowerCase().includes('ovo') ? 80 : 70;
-
-      const strengths = [
-        "Capacidade técnica prática alinhada com as necessidades descritas",
-        "Experiência com rotinas rurais tradicionais de campo",
-        "Disponibilidade para início imediato conforme perfil avaliado"
-      ];
-
-      const gaps = [
-        "Falta certificação técnica formal em maquinários avançados",
-        "Pode precisar de integração sobre controles de biosseguridade aviária do Grupo Shigueno"
-      ];
-
-      const questions = [
-        "Como era a divisão das suas tarefas em sua experiência agropecuária anterior?",
-        "Tem facilidade para trabalhar em equipe nos galpões ou pomares?",
-        "Quais técnicas de segurança física você prioriza no manejo diário rural?"
-      ];
-
       aiRawResponse = JSON.stringify({
-        score: matchScore,
-        summary: `Candidato robusto com experiência em serviços do agronegócio de base. Apresenta vocação natural para desafios ao ar livre e estabilidade nos locais anteriores.`,
-        strengths: strengths,
-        gaps: gaps,
-        recommendations: "Agendar uma ligação telefônica inicial para confirmar qualificações básicas de CNH e disponibilidade geográfica.",
-        matchingVacancies: candidate.vacancy_id === 1 ? ["Auxiliar de Avicultura"] : ["Tratorista Agrícola"],
-        questions: questions
+        score: 70, summary: 'Avaliação offline — configure GEMINI_API_KEY para análise IA completa.',
+        strengths: ['Experiência rural'], gaps: ['Certificações formais'],
+        recommendations: 'Agendar entrevista para verificar qualificações.',
+        matchingVacancies: [], questions: ['Qual sua experiência com maquinário agrícola?']
       });
     }
 
-    // Save with candidates_ai
-    await db.run('UPDATE candidates_ai SET ai_analysis = ? WHERE id = ?', [aiRawResponse, id]);
-
+    await db.run('UPDATE candidates SET ai_analysis = ? WHERE id = ?', [aiRawResponse, id]);
     res.json({ success: true, ai_analysis: JSON.parse(aiRawResponse) });
   } catch (error: any) {
-    console.error('Error in candidate AI evaluation route:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-router.delete('/candidates/:id', async (req, res) => {
+// DELETE /api/candidates/:id
+router.delete('/candidates/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const db = await getDb();
+    const candidate = await db.get('SELECT cv_file_path FROM candidates WHERE id = ?', [id]) as any;
+    if (candidate?.cv_file_path && fs.existsSync(candidate.cv_file_path)) {
+      fs.unlinkSync(candidate.cv_file_path);
+    }
     await db.run('DELETE FROM candidates WHERE id = ?', [id]);
     res.json({ success: true, message: 'Candidato removido do sistema.' });
   } catch (error: any) {

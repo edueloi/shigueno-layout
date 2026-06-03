@@ -1,5 +1,5 @@
 import React from 'react';
-import { Briefcase, MapPin, Users, FileText, ChevronRight, CheckCircle, Clock } from 'lucide-react';
+import { Briefcase, MapPin, FileText, ChevronRight, CheckCircle, Clock, Paperclip, X } from 'lucide-react';
 import { Vacancy } from '../types';
 import { useLanguage } from '../LanguageContext';
 
@@ -18,8 +18,10 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
   const [email, setEmail] = React.useState('');
   const [phone, setPhone] = React.useState('');
   const [cvText, setCvText] = React.useState('');
+  const [cvFile, setCvFile] = React.useState<File | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [submittedMessage, setSubmittedMessage] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const localizedTexts = {
     pt: {
@@ -53,9 +55,13 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resumo Curricular / Experiência *",
       fieldCvHelp: "Copie e cole suas experiências aqui",
       cvPlaceholder: "Descreva brevemente onde trabalhou, maquinários que opera, fazendas onde trabalhou ou referências de trabalhos rurais anteriores...",
+      fieldFile: "Anexar Currículo (PDF, DOC, DOCX)",
+      fieldFileBtn: "Clique para anexar arquivo",
+      fieldFileHelp: "Opcional · Máx. 10 MB",
+      fieldFileRemove: "Remover arquivo",
       sending: "Enviando Ficha...",
       submitBtn: "Enviar Currículo para o RH",
-      securityNote: "* Seus dados serão transmitidos de forma segura diretamente para o banco de dados SQLite do painel do Gestor Shigueno.",
+      securityNote: "* Seus dados serão transmitidos de forma segura diretamente para o banco de dados do painel do Gestor Shigueno.",
       alertFields: "Por favor, preencha todos os campos obrigatórios.",
       alertError: "Erro ao enviar candidatura: ",
       alertConnection: "Erro de conexão ao enviar currículo."
@@ -91,6 +97,10 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resume Summary / Experience *",
       fieldCvHelp: "Copy and paste your professional background here",
       cvPlaceholder: "Briefly describe your past jobs, machinery you operate, farms you worked on, or previous agricultural references...",
+      fieldFile: "Attach Resume (PDF, DOC, DOCX)",
+      fieldFileBtn: "Click to attach file",
+      fieldFileHelp: "Optional · Max 10 MB",
+      fieldFileRemove: "Remove file",
       sending: "Submitting Form...",
       submitBtn: "Send Resume to HR",
       securityNote: "* Your data will be securely transmitted directly to Shigueno's admin dashboard database.",
@@ -129,6 +139,10 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resumen de Currículum / Experiencia *",
       fieldCvHelp: "Copie y pegue sus experiencias aquí",
       cvPlaceholder: "Describa brevemente dónde trabajó, qué maquinarias opera, granjas donde trabajó o referencias de trabajos agrícolas anteriores...",
+      fieldFile: "Adjuntar Currículum (PDF, DOC, DOCX)",
+      fieldFileBtn: "Haga clic para adjuntar archivo",
+      fieldFileHelp: "Opcional · Máx. 10 MB",
+      fieldFileRemove: "Eliminar archivo",
       sending: "Enviando Ficha...",
       submitBtn: "Enviar Currículum a Recursos Humanos",
       securityNote: "* Sus datos se transmitirán de forma segura directamente a la base de datos del panel de administración de Shigueno.",
@@ -168,26 +182,22 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
 
     try {
       setSubmitting(true);
-      const response = await fetch('/api/candidates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          email,
-          phone,
-          vacancy_id: selectedVacancy?.id || null,
-          cv_text: cvText
-        })
-      });
+
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('email', email);
+      formData.append('phone', phone);
+      formData.append('cv_text', cvText);
+      if (selectedVacancy?.id) formData.append('vacancy_id', String(selectedVacancy.id));
+      if (cvFile) formData.append('cv_file', cvFile);
+
+      const response = await fetch('/api/candidates', { method: 'POST', body: formData });
       const data = await response.json();
+
       if (data.success) {
         setSubmittedMessage(data.message || tView.successTitle);
-        // Reset state
-        setName('');
-        setEmail('');
-        setPhone('');
-        setCvText('');
-        // Smooth scroll to success
+        setName(''); setEmail(''); setPhone(''); setCvText(''); setCvFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
         alert(tView.alertError + data.message);
@@ -407,6 +417,51 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
                     onChange={(e) => setCvText(e.target.value)}
                     className="w-full bg-white border border-slate-250 px-4 py-3 rounded-xl text-xs font-medium focus:outline-emerald-805 leading-relaxed font-mono"
                   ></textarea>
+                </div>
+
+                {/* Upload de arquivo de CV */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs font-bold text-slate-700 uppercase font-sans">{tView.fieldFile}</label>
+                    <span className="text-[10px] text-slate-400 font-mono">{tView.fieldFileHelp}</span>
+                  </div>
+                  {cvFile ? (
+                    <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+                      <FileText className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span className="text-xs text-emerald-900 font-medium truncate flex-1">{cvFile.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {(cvFile.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => { setCvFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                        className="text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                        title={tView.fieldFileRemove}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-3 w-full bg-white border border-dashed border-slate-300 hover:border-emerald-500 px-4 py-3 rounded-xl cursor-pointer transition-colors group">
+                      <Paperclip className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 shrink-0" />
+                      <span className="text-xs text-slate-500 group-hover:text-emerald-700 font-sans">{tView.fieldFileBtn}</span>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null;
+                          if (file && file.size > 10 * 1024 * 1024) {
+                            alert('Arquivo muito grande. Máximo 10 MB.');
+                            e.target.value = '';
+                            return;
+                          }
+                          setCvFile(file);
+                        }}
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <button

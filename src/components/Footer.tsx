@@ -51,10 +51,7 @@ export default function Footer({ onNavigate, siteSettings }: FooterProps) {
           {/* Column 1: Shigueno Emblem & Motto */}
           <div className="space-y-4" id="footer-branding-column">
             <div className="flex items-center space-x-3">
-              {/* Shield Mini representation in footer */}
-              <div className="w-8 h-8 bg-white text-emerald-950 rounded-b-lg rounded-t-sm flex items-center justify-center font-bold font-sans text-lg border border-amber-500">
-                S
-              </div>
+              <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-10 h-10 object-contain" />
               <span className="text-xl font-extrabold tracking-tight uppercase text-white font-sans">
                 Shigueno
               </span>
@@ -168,7 +165,7 @@ export default function Footer({ onNavigate, siteSettings }: FooterProps) {
             
             {/* Interactive styled Action to view/download Map */}
             <a 
-              href="https://maps.google.com/?q=Rodovia+Tatui+Quadra+KM+1+Tatui+SP" 
+              href="https://www.google.com/maps?q=-23.3980,-47.9120" 
               target="_blank" 
               rel="noopener noreferrer"
               id="download-map-button"
