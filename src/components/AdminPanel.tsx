@@ -14,11 +14,14 @@ import { Vacancy, Candidate, Supplier, DashboardStats } from '../types';
 import BlogManager from './BlogManager';
 import A4PosterModal from './A4PosterModal';
 import TrackingPanel from './TrackingPanel';
+import ActivityBoard from './ActivityBoard';
 
 interface AdminPanelProps {
   onLogout: () => void;
   onNavigate: (viewKey: string) => void;
   onSettingsUpdate?: () => void;
+  user?: { id: number; username: string; name: string; role: string } | null;
+  token?: string;
 }
 
 const COLORS = ['#047857', '#fbbf24', '#065f46', '#f59e0b', '#1e3a8a', '#dc2626'];
@@ -49,7 +52,7 @@ const getAiData = (candidate: any) => {
 };
 
 // ── Admin sub-route mapping ────────────────────────────────────────────────────
-type SubTab = 'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'tracking' | 'blog' | 'settings';
+type SubTab = 'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'tracking' | 'blog' | 'settings' | 'permissions';
 
 const ADMIN_HASH: Record<string, SubTab> = {
   '#dashboard':   'reports',
@@ -59,33 +62,207 @@ const ADMIN_HASH: Record<string, SubTab> = {
   '#vagas':       'vacancies',
   '#candidatos':  'candidates',
   '#configuracoes':'settings',
+  '#permissoes':  'permissions',
 };
 const TAB_TO_HASH: Record<SubTab, string> = {
-  reports:    '/admin#dashboard',
-  suppliers:  '/admin#atividades',
-  tracking:   '/admin#rastreamento',
-  blog:       '/admin#blog',
-  vacancies:  '/admin#vagas',
-  candidates: '/admin#candidatos',
-  settings:   '/admin#configuracoes',
+  reports:     '/admin#dashboard',
+  suppliers:   '/admin#atividades',
+  tracking:    '/admin#rastreamento',
+  blog:        '/admin#blog',
+  vacancies:   '/admin#vagas',
+  candidates:  '/admin#candidatos',
+  settings:    '/admin#configuracoes',
+  permissions: '/admin#permissoes',
 };
 const TAB_TITLES: Record<SubTab, string> = {
-  reports:    'Dashboard | Painel Shigueno',
-  suppliers:  'Atividades | Painel Shigueno',
-  tracking:   'Rastreamento | Painel Shigueno',
-  blog:       'Blog | Painel Shigueno',
-  vacancies:  'Vagas | Painel Shigueno',
-  candidates: 'Candidatos | Painel Shigueno',
-  settings:   'Configurações | Painel Shigueno',
+  reports:     'Dashboard | Painel Shigueno',
+  suppliers:   'Atividades | Painel Shigueno',
+  tracking:    'Rastreamento | Painel Shigueno',
+  blog:        'Blog | Painel Shigueno',
+  vacancies:   'Vagas | Painel Shigueno',
+  candidates:  'Candidatos | Painel Shigueno',
+  settings:    'Configurações | Painel Shigueno',
+  permissions: 'Permissões | Painel Shigueno',
 };
 
 function hashToTab(): SubTab {
   return ADMIN_HASH[window.location.hash] || 'reports';
 }
 
-export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: AdminPanelProps) {
+// ── Permission toggles component ─────────────────────────────────────────────
+const MENU_PERMS = [
+  { key: 'can_view_reports',    label: 'Ver Relatórios',        edit: null },
+  { key: 'can_view_activities', label: 'Ver Atividades',        edit: 'can_edit_activities' },
+  { key: 'can_view_tracking',   label: 'Ver Rastreamento',      edit: 'can_edit_tracking' },
+  { key: 'can_view_blog',       label: 'Ver Blog',              edit: 'can_edit_blog' },
+  { key: 'can_view_vacancies',  label: 'Ver Vagas',             edit: 'can_edit_vacancies' },
+  { key: 'can_view_candidates', label: 'Ver Candidatos',        edit: 'can_edit_candidates' },
+  { key: 'can_view_settings',   label: 'Ver Dados do Site',     edit: 'can_edit_settings' },
+] as const;
+
+function PermissionEditor({ userId, initialPerms, saving, onSave }: {
+  userId: number;
+  initialPerms: Record<string, number>;
+  saving: boolean;
+  onSave: (p: Record<string, number>) => void;
+}) {
+  const [perms, setPerms] = React.useState<Record<string, number>>({ ...initialPerms });
+  const toggle = (key: string) => setPerms(p => ({ ...p, [key]: p[key] ? 0 : 1 }));
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+        {MENU_PERMS.map(({ key, label, edit }) => (
+          <div key={key} className={`rounded-xl border p-3 space-y-2 transition-all ${perms[key] ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/40'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-800">{label}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  toggle(key);
+                  if (!perms[key] === false && edit) setPerms(p => ({ ...p, [edit]: 0 }));
+                }}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${perms[key] ? 'bg-emerald-700' : 'bg-slate-300'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${perms[key] ? 'translate-x-4' : 'translate-x-0'}`} />
+              </button>
+            </div>
+            {edit && perms[key] === 1 && (
+              <div className="flex items-center justify-between pt-0.5 border-t border-emerald-200/60">
+                <span className="text-[10px] text-slate-500 font-mono">Pode editar</span>
+                <button
+                  type="button"
+                  onClick={() => toggle(edit)}
+                  className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${perms[edit] ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                >
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${perms[edit] ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end">
+        <button
+          onClick={() => onSave(perms)}
+          disabled={saving}
+          className="bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-extrabold text-xs px-5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
+        >
+          {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+          <span>{saving ? 'Salvando...' : 'Salvar Permissões'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AddUserForm({ authFetch, onCreated, showSuccess }: {
+  authFetch: (url: string, opts?: RequestInit) => Promise<Response>;
+  onCreated: () => void;
+  showSuccess: (msg: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState('');
+  const [username, setUsername] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [role, setRole] = React.useState('operador');
+  const [error, setError] = React.useState('');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    try {
+      const res = await authFetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, username, password, role })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess(`Usuário "${name}" criado. Configure as permissões acima.`);
+        setOpen(false);
+        setName(''); setUsername(''); setPassword(''); setRole('operador');
+        onCreated();
+      } else {
+        setError(data.error || 'Erro ao criar usuário.');
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer border border-slate-200"
+      >
+        <Plus className="w-4 h-4" />
+        <span>Adicionar Novo Usuário</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-[#fafbfa] border border-slate-200 rounded-2xl p-5 space-y-4 animate-slide-in">
+      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Novo Usuário do Painel</h3>
+      {error && <p className="text-xs text-rose-600 font-bold bg-rose-50 px-3 py-2 rounded-xl border border-rose-200">{error}</p>}
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Nome Completo *</label>
+          <input required value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Gisela Shigueno" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Login (username) *</label>
+          <input required value={username} onChange={e => setUsername(e.target.value)} placeholder="Ex: gisela.shigueno" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Senha Inicial *</label>
+          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Perfil</label>
+          <select value={role} onChange={e => setRole(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850">
+            <option value="operador">Operador (permissões manuais)</option>
+            <option value="gestor">Gestor (acesso expandido)</option>
+            <option value="admin">Administrador (acesso total)</option>
+          </select>
+        </div>
+        <div className="md:col-span-2 flex justify-end space-x-2 pt-1">
+          <button type="button" onClick={() => setOpen(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">Cancelar</button>
+          <button type="submit" className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-5 py-2 rounded-xl cursor-pointer">Criar Usuário</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, user, token = '' }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>(hashToTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+
+  // Current user identity from props (no localStorage)
+  const currentUserRole = user?.role || 'operador';
+  const currentUserId = user?.id || null;
+  const currentUserName = user?.name || 'Gestor';
+
+  // Load current user permissions from backend
+  const [currentUserPerms, setCurrentUserPerms] = React.useState<Record<string, number> | null>(null);
+
+  React.useEffect(() => {
+    if (currentUserRole === 'admin' || !currentUserId) return;
+    fetch(`/api/permissions?userId=${currentUserId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.success && d.permissions?.length) setCurrentUserPerms(d.permissions[0]);
+      })
+      .catch(() => {});
+  }, [currentUserId, currentUserRole]);
+
+  const canView = (permKey: string): boolean => {
+    if (currentUserRole === 'admin') return true;
+    if (!currentUserPerms) return false;
+    return !!currentUserPerms[permKey];
+  };
 
   // Sync hash → tab (browser back/forward)
   React.useEffect(() => {
@@ -100,9 +277,8 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
     document.title = TAB_TITLES[activeSubTab];
   }, [activeSubTab]);
 
-  // Authenticated fetch helper to pass security middleware
+  // Authenticated fetch helper — uses token from props (no localStorage)
   const authFetch = async (url: string, options: RequestInit = {}) => {
-    const token = localStorage.getItem('shigueno_token') || '';
     return fetch(url, {
       ...options,
       headers: {
@@ -151,10 +327,22 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
   const [actTitle, setActTitle] = React.useState('');
   const [actDescription, setActDescription] = React.useState('');
   const [actCategory, setActCategory] = React.useState('Ações');
+  const [actSector, setActSector] = React.useState('');
   const [actStatus, setActStatus] = React.useState('A Fazer');
   const [actPriority, setActPriority] = React.useState('Média');
   const [actResponsible, setActResponsible] = React.useState('');
   const [actDueDate, setActDueDate] = React.useState('');
+
+  // Kanban view mode: 'board' = ativas | 'history' = concluídas
+  const [activityView, setActivityView] = React.useState<'board' | 'history'>('board');
+  const [completedActivities, setCompletedActivities] = React.useState<any[]>([]);
+  const [activitySectorFilter, setActivitySectorFilter] = React.useState('Todos');
+  const [activityDateFrom, setActivityDateFrom] = React.useState('');
+  const [activityDateTo, setActivityDateTo] = React.useState('');
+
+  // Permissions management state
+  const [permUsers, setPermUsers] = React.useState<any[]>([]);
+  const [permSaving, setPermSaving] = React.useState<number | null>(null);
 
   const [vacancyFormOpen, setVacancyFormOpen] = React.useState(false);
   const [selectedVacancyId, setSelectedVacancyId] = React.useState<number | null>(null);
@@ -195,6 +383,13 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
   const [candidateStatusFilter, setCandidateStatusFilter] = React.useState('Todos');
   const [candidateSearchQuery, setCandidateSearchQuery] = React.useState('');
   const [candidateVacancyFilter, setCandidateVacancyFilter] = React.useState('Todos');
+
+  // Sectors list (dynamic, derived from activities)
+  const activitySectors = React.useMemo(() => {
+    const s = new Set<string>();
+    activities.forEach(a => { if (a.sector) s.add(a.sector); });
+    return Array.from(s).sort();
+  }, [activities]);
   
   // Manual candidate registration states
   const [manualCandidateModalOpen, setManualCandidateModalOpen] = React.useState(false);
@@ -254,11 +449,25 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
         setStats(reportsData.stats);
       }
 
-      // Fetch Activities list
+      // Fetch Activities list (active)
       const activitiesRes = await fetch('/api/activities');
       const activitiesData = await activitiesRes.json();
       if (activitiesData.success) {
         setActivities(activitiesData.activities || []);
+      }
+
+      // Fetch completed activities (history)
+      const histRes = await fetch('/api/activities?history=1');
+      const histData = await histRes.json();
+      if (histData.success) {
+        setCompletedActivities(histData.activities || []);
+      }
+
+      // Fetch users with permissions (for permissions tab)
+      const permRes = await fetch('/api/permissions/users');
+      const permData = await permRes.json();
+      if (permData.success) {
+        setPermUsers(permData.users || []);
       }
 
       // Fetch MT Cattle Suppliers list (for consolidated reports)
@@ -509,6 +718,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
       title: actTitle,
       description: actDescription,
       category: actCategory,
+      sector: actSector,
       status: actStatus,
       priority: actPriority,
       responsible: actResponsible,
@@ -572,6 +782,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
     setActTitle(act.title);
     setActDescription(act.description);
     setActCategory(act.category);
+    setActSector(act.sector || '');
     setActStatus(act.status);
     setActPriority(act.priority);
     setActResponsible(act.responsible);
@@ -584,10 +795,54 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
     setActTitle('');
     setActDescription('');
     setActCategory('Ações');
+    setActSector('');
     setActStatus(kanbanColumns[0] || 'A Fazer');
     setActPriority('Média');
     setActResponsible('');
     setActDueDate('');
+  };
+
+  // Mark activity as completed (moves to history)
+  const markActivityDone = async (act: any) => {
+    try {
+      await authFetch(`/api/activities/${act.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...act, sector: act.sector || '', mark_completed: true })
+      });
+      showSuccess(`"${act.title}" marcada como concluída e movida ao histórico.`);
+      fetchInitialData();
+    } catch (e) { console.error(e); }
+  };
+
+  // Restore activity from history back to board
+  const restoreActivity = async (act: any) => {
+    try {
+      await authFetch(`/api/activities/${act.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...act, sector: act.sector || '', mark_completed: false })
+      });
+      showSuccess(`"${act.title}" restaurada ao quadro ativo.`);
+      fetchInitialData();
+    } catch (e) { console.error(e); }
+  };
+
+  // Save permissions for a user
+  const savePermissions = async (userId: number, perms: any) => {
+    setPermSaving(userId);
+    try {
+      const res = await authFetch(`/api/permissions/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(perms)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showSuccess('Permissões salvas com sucesso.');
+        fetchInitialData();
+      }
+    } catch (e) { console.error(e); } finally { setPermSaving(null); }
   };
 
   // --- KANBAN COLUMN & DRAG AND DROP HANDLERS ---
@@ -1144,61 +1399,53 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
         {/* LOGGED IN USER PROFILE */}
         <div className="p-4 mx-4 my-2.5 bg-emerald-900/20 rounded-2xl border border-emerald-800/40 flex items-center space-x-3">
           <div className="w-9 h-9 rounded-full bg-emerald-850 border-2 border-emerald-700/60 flex items-center justify-center text-xs font-black text-amber-400">
-            {(() => {
-              const savedUser = localStorage.getItem('shigueno_user');
-              const name = savedUser ? JSON.parse(savedUser).name : 'G';
-              return name.charAt(0).toUpperCase();
-            })()}
+            {currentUserName.charAt(0).toUpperCase()}
           </div>
           <div className="overflow-hidden">
-            <p className="text-xs font-extrabold text-white truncate">
-              {(() => {
-                const savedUser = localStorage.getItem('shigueno_user');
-                return savedUser ? JSON.parse(savedUser).name : 'Gestor Geral';
-              })()}
-            </p>
-            <span className="text-[10px] text-emerald-400 font-bold font-mono tracking-wide uppercase">
-              {(() => {
-                const savedUser = localStorage.getItem('shigueno_user');
-                return savedUser ? JSON.parse(savedUser).role : 'Administrador';
-              })()}
-            </span>
+            <p className="text-xs font-extrabold text-white truncate">{currentUserName}</p>
+            <span className="text-[10px] text-emerald-400 font-bold font-mono tracking-wide uppercase">{currentUserRole}</span>
           </div>
         </div>
 
         {/* NAVIGATION MENUS */}
         <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto scrollbar-thin">
-          {[
-            { key: 'reports', label: 'Relatórios Gerais', icon: BarChart2 },
-            { key: 'suppliers', label: 'Quadro de Atividades', icon: LayoutGrid },
-            { key: 'tracking', label: 'Rastreamento & Frotas', icon: Truck },
-            { key: 'blog', label: 'Gestor do Blog', icon: FileText },
-            { key: 'vacancies', label: 'Cadastro de Vagas', icon: Briefcase },
-            { key: 'candidates', label: 'Seleção & Currículos', icon: Users },
-            { key: 'settings', label: 'Dados do Site', icon: Settings }
-          ].map((item) => {
-            const IconComponent = item.icon;
-            const active = activeSubTab === item.key;
-            return (
-              <button
-                key={item.key}
-                onClick={() => {
-                  const tab = item.key as SubTab;
-                  window.history.pushState(null, '', TAB_TO_HASH[tab]);
-                  setActiveSubTab(tab);
-                  setMobileSidebarOpen(false);
-                }}
-                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
-                  active 
-                    ? 'bg-amber-500 text-slate-950 font-black shadow-md' 
-                    : 'text-emerald-250 hover:bg-emerald-900/50 hover:text-white'
-                }`}
-              >
-                <IconComponent className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-emerald-400'}`} />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
+          {([
+            { key: 'reports',     label: 'Relatórios Gerais',    icon: BarChart2,  permKey: 'can_view_reports' },
+            { key: 'suppliers',   label: 'Quadro de Atividades', icon: LayoutGrid, permKey: 'can_view_activities' },
+            { key: 'tracking',    label: 'Rastreamento & Frotas',icon: Truck,      permKey: 'can_view_tracking' },
+            { key: 'blog',        label: 'Gestor do Blog',       icon: FileText,   permKey: 'can_view_blog' },
+            { key: 'vacancies',   label: 'Cadastro de Vagas',    icon: Briefcase,  permKey: 'can_view_vacancies' },
+            { key: 'candidates',  label: 'Seleção & Currículos', icon: Users,      permKey: 'can_view_candidates' },
+            { key: 'settings',    label: 'Dados do Site',        icon: Settings,   permKey: 'can_view_settings' },
+            { key: 'permissions', label: 'Usuários & Permissões',icon: Award,      permKey: 'admin_only' },
+          ] as Array<{ key: string; label: string; icon: React.ElementType; permKey: string }>)
+            .filter(item => {
+              if (item.permKey === 'admin_only') return currentUserRole === 'admin';
+              return canView(item.permKey);
+            })
+            .map((item) => {
+              const IconComponent = item.icon;
+              const active = activeSubTab === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => {
+                    const tab = item.key as SubTab;
+                    window.history.pushState(null, '', TAB_TO_HASH[tab]);
+                    setActiveSubTab(tab);
+                    setMobileSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
+                    active
+                      ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                      : 'text-emerald-250 hover:bg-emerald-900/50 hover:text-white'
+                  }`}
+                >
+                  <IconComponent className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-emerald-400'}`} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
         </nav>
 
         {/* BOTTOM NAV / ACTIONS */}
@@ -1242,6 +1489,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                 {activeSubTab === 'vacancies' && 'Gestão de Oportunidades Empregatícias'}
                 {activeSubTab === 'candidates' && 'Recrutamento & Seleção de Talentos'}
                 {activeSubTab === 'settings' && 'Dados e Divulgação da Instituição'}
+                {activeSubTab === 'permissions' && 'Usuários & Controle de Acesso ao Painel'}
               </h1>
             </div>
           </div>
@@ -1793,19 +2041,53 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
               </div>
             )}
 
-            {/* SUBTAB 2: GESTÃO DO QUADRO DE ATIVIDADES --- KANBAN */}
+            {/* SUBTAB 2: QUADRO DE ATIVIDADES */}
             {activeSubTab === 'suppliers' && (
+              <div className="animate-fade-in">
+                <ActivityBoard
+                  user={user ? { id: user.id, name: user.name, role: user.role } : null}
+                  token={token}
+                  canEdit={canView('can_edit_activities') || currentUserRole === 'admin'}
+                  permUsers={permUsers.map(u => ({ id: u.id, name: u.name, username: u.username }))}
+                />
+              </div>
+            )}
+
+            {/* SUBTAB 2b: OLD KANBAN PLACEHOLDER — KEPT FOR REFERENCE */}
+            {false && (
               <div className="space-y-6 animate-fade-in">
-                
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 pb-4">
+
+                {/* Header + view toggle */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-150 pb-4">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Quadro de Atividades Shigueno</h2>
                     <p className="text-xs text-slate-500">Fluxo Kanban integrado para planejar ações, compras, contratações gerais e finanças da corporação.</p>
+                    {/* Board / History tabs */}
+                    <div className="flex items-center space-x-1 mt-3">
+                      <button
+                        onClick={() => setActivityView('board')}
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${activityView === 'board' ? 'bg-emerald-800 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        Quadro Ativo
+                      </button>
+                      <button
+                        onClick={() => setActivityView('history')}
+                        className={`px-3.5 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer flex items-center space-x-1.5 ${activityView === 'history' ? 'bg-indigo-700 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Histórico Concluídos</span>
+                        {completedActivities.length > 0 && (
+                          <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${activityView === 'history' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'}`}>
+                            {completedActivities.length}
+                          </span>
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Search Bar for Title and Assigned User */}
-                    <div className="relative min-w-[220px]">
+                    {/* Search */}
+                    <div className="relative min-w-[200px]">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
                         <Search className="w-3.5 h-3.5" />
                       </span>
@@ -1817,82 +2099,92 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                         className="w-full bg-white border border-slate-250 rounded-xl pl-9 pr-8 py-2 text-xs font-semibold focus:outline-emerald-850 placeholder:text-slate-400/90"
                       />
                       {activitySearchQuery && (
-                        <button
-                          type="button"
-                          onClick={() => setActivitySearchQuery('')}
-                          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                        >
+                        <button type="button" onClick={() => setActivitySearchQuery('')} className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
-                    <div className="relative font-bold">
-                      <select
-                        value={activityCategoryFilter}
-                        onChange={(e) => setActivityCategoryFilter(e.target.value)}
-                        className="bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-emerald-850"
-                      >
-                        <option value="Todos">Filtrar Categoria: Todos</option>
-                        <option value="Compras">Compras</option>
-                        <option value="Ações">Ações</option>
-                        <option value="Contratações Gerais">Contratações Gerais</option>
-                        <option value="Financeiro">Financeiro</option>
-                      </select>
+                    {/* Category filter */}
+                    <select
+                      value={activityCategoryFilter}
+                      onChange={(e) => setActivityCategoryFilter(e.target.value)}
+                      className="bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-emerald-850"
+                    >
+                      <option value="Todos">Categoria: Todos</option>
+                      <option value="Compras">Compras</option>
+                      <option value="Ações">Ações</option>
+                      <option value="Contratações Gerais">Contratações Gerais</option>
+                      <option value="Financeiro">Financeiro</option>
+                    </select>
+
+                    {/* Sector filter */}
+                    <select
+                      value={activitySectorFilter}
+                      onChange={(e) => setActivitySectorFilter(e.target.value)}
+                      className="bg-white border border-slate-250 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-emerald-850"
+                    >
+                      <option value="Todos">Setor: Todos</option>
+                      {activitySectors.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+
+                    {/* Date range */}
+                    <div className="flex items-center space-x-1">
+                      <input
+                        type="date"
+                        value={activityDateFrom}
+                        onChange={(e) => setActivityDateFrom(e.target.value)}
+                        title="Data de início"
+                        className="bg-white border border-slate-250 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-emerald-850 w-[130px]"
+                      />
+                      <span className="text-slate-400 text-[10px] font-bold">até</span>
+                      <input
+                        type="date"
+                        value={activityDateTo}
+                        onChange={(e) => setActivityDateTo(e.target.value)}
+                        title="Data de fim"
+                        className="bg-white border border-slate-250 rounded-xl px-2.5 py-2 text-xs font-semibold text-slate-700 focus:outline-emerald-850 w-[130px]"
+                      />
+                      {(activityDateFrom || activityDateTo) && (
+                        <button type="button" onClick={() => { setActivityDateFrom(''); setActivityDateTo(''); }} className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer" title="Limpar datas">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
-                    <button
-                      onClick={() => {
-                        resetActivityForm();
-                        setActivityFormOpen(true);
-                      }}
-                      className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Nova Atividade</span>
-                    </button>
+                    {activityView === 'board' && (
+                      <button
+                        onClick={() => { resetActivityForm(); setActivityFormOpen(true); }}
+                        className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5 cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Nova Atividade</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
                 {/* Activity CRUD Form Dialog */}
-                {activityFormOpen && (
+                {activityFormOpen && activityView === 'board' && (
                   <div className="bg-[#fafbfa] border border-emerald-355 rounded-3xl p-6 shadow-xs animate-slide-in">
                     <h3 className="text-sm font-black text-slate-900 mb-4 uppercase tracking-tight">
                       {selectedActivityId ? 'Editar Atividade' : 'Cadastrar Nova Atividade'}
                     </h3>
-                    
+
                     <form onSubmit={saveActivity} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="md:col-span-2">
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Título da Atividade *</label>
-                        <input
-                          type="text"
-                          required
-                          value={actTitle}
-                          onChange={(e) => setActTitle(e.target.value)}
-                          placeholder="Ex: Contratação de tratorista para colheita..."
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                        />
+                        <input type="text" required value={actTitle} onChange={(e) => setActTitle(e.target.value)} placeholder="Ex: Contratação de tratorista para colheita..." className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
                       </div>
 
                       <div className="md:col-span-2">
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1 font-sans">Descrição Detalhada *</label>
-                        <textarea
-                          required
-                          rows={3}
-                          value={actDescription}
-                          onChange={(e) => setActDescription(e.target.value)}
-                          placeholder="Detalhes sobre escopo, parceiros ou prazos envolvidos..."
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                        />
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Descrição Detalhada *</label>
+                        <textarea required rows={3} value={actDescription} onChange={(e) => setActDescription(e.target.value)} placeholder="Detalhes sobre escopo, parceiros ou prazos envolvidos..." className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
                       </div>
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Categoria *</label>
-                        <select
-                          value={actCategory}
-                          onChange={(e) => setActCategory(e.target.value)}
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850"
-                        >
+                        <select value={actCategory} onChange={(e) => setActCategory(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850">
                           <option value="Compras">Compras</option>
                           <option value="Ações">Ações</option>
                           <option value="Contratações Gerais">Contratações Gerais</option>
@@ -1901,25 +2193,26 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                       </div>
 
                       <div>
+                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Setor / Área</label>
+                        <input type="text" value={actSector} onChange={(e) => setActSector(e.target.value)} placeholder="Ex: Avicultura, Citricultura, Financeiro..." className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" list="sector-suggestions" />
+                        <datalist id="sector-suggestions">
+                          {activitySectors.map(s => <option key={s} value={s} />)}
+                          <option value="Avicultura" /><option value="Citricultura" /><option value="Cafeicultura" />
+                          <option value="Pecuária Nelore" /><option value="Financeiro" /><option value="RH" />
+                          <option value="TI" /><option value="Logística" /><option value="Administrativo" />
+                        </datalist>
+                      </div>
+
+                      <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Status Kanban *</label>
-                        <select
-                          value={actStatus}
-                          onChange={(e) => setActStatus(e.target.value)}
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850"
-                        >
-                          {kanbanColumns.map(col => (
-                            <option key={col} value={col}>{col}</option>
-                          ))}
+                        <select value={actStatus} onChange={(e) => setActStatus(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850">
+                          {kanbanColumns.map(col => <option key={col} value={col}>{col}</option>)}
                         </select>
                       </div>
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Prioridade *</label>
-                        <select
-                          value={actPriority}
-                          onChange={(e) => setActPriority(e.target.value)}
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850"
-                        >
+                        <select value={actPriority} onChange={(e) => setActPriority(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850">
                           <option value="Alta">Alta</option>
                           <option value="Média">Média</option>
                           <option value="Baixa">Baixa</option>
@@ -1928,62 +2221,37 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Responsável *</label>
-                        <input
-                          type="text"
-                          required
-                          value={actResponsible}
-                          onChange={(e) => setActResponsible(e.target.value)}
-                          placeholder="Ex: Gisela Shigueno"
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                        />
+                        <input type="text" required value={actResponsible} onChange={(e) => setActResponsible(e.target.value)} placeholder="Ex: Gisela Shigueno" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
                       </div>
 
                       <div>
                         <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Prazo (Data Limite) *</label>
-                        <input
-                          type="date"
-                          required
-                          value={actDueDate}
-                          onChange={(e) => setActDueDate(e.target.value)}
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                        />
+                        <input type="date" required value={actDueDate} onChange={(e) => setActDueDate(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
                       </div>
 
                       <div className="md:col-span-2 flex items-end justify-end space-x-2 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActivityFormOpen(false);
-                            resetActivityForm();
-                          }}
-                          className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          type="submit"
-                          className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer"
-                        >
-                          Salvar Atividade
-                        </button>
+                        <button type="button" onClick={() => { setActivityFormOpen(false); resetActivityForm(); }} className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer">Cancelar</button>
+                        <button type="submit" className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer">Salvar Atividade</button>
                       </div>
                     </form>
                   </div>
                 )}
 
-                {/* Kanban Columns */}
+                {/* Kanban Columns — board view only */}
+                {activityView === 'board' && (
                 <div className="flex flex-col md:flex-row gap-6 overflow-x-auto pb-6 pt-2 items-start scrollbar-thin scrollbar-thumb-emerald-800 scrollbar-track-slate-100">
                   {kanbanColumns.map((columnStatus, columnIndex) => {
                     const filteredList = activities.filter((act) => {
                       const matchesStatus = act.status === columnStatus;
                       const matchesCategory = activityCategoryFilter === 'Todos' || act.category === activityCategoryFilter;
-                      
+                      const matchesSector = activitySectorFilter === 'Todos' || act.sector === activitySectorFilter;
                       const searchStr = activitySearchQuery.trim().toLowerCase();
-                      const matchesSearch = !searchStr || 
-                        (act.title && act.title.toLowerCase().includes(searchStr)) || 
+                      const matchesSearch = !searchStr ||
+                        (act.title && act.title.toLowerCase().includes(searchStr)) ||
                         (act.responsible && act.responsible.toLowerCase().includes(searchStr));
-                      
-                      return matchesStatus && matchesCategory && matchesSearch;
+                      const matchesDateFrom = !activityDateFrom || (act.due_date && act.due_date >= activityDateFrom);
+                      const matchesDateTo = !activityDateTo || (act.due_date && act.due_date <= activityDateTo);
+                      return matchesStatus && matchesCategory && matchesSector && matchesSearch && matchesDateFrom && matchesDateTo;
                     });
 
                     const isOver = draggedOverColumn === columnStatus;
@@ -2122,6 +2390,11 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                                     <span className="bg-slate-100 text-[#334155] text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
                                       📁 {act.category}
                                     </span>
+                                    {act.sector && (
+                                      <span className="bg-violet-50 text-violet-800 text-[9px] font-bold px-2 py-0.5 rounded-md font-sans border border-violet-100">
+                                        🏢 {act.sector}
+                                      </span>
+                                    )}
                                     {act.responsible && (
                                       <span className="bg-emerald-50/70 text-emerald-900 text-[9px] font-bold px-2 py-0.5 rounded-md font-sans">
                                         👤 {act.responsible}
@@ -2134,60 +2407,33 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                                     )}
                                   </div>
 
-                                  {/* Card bottom actions for edits and deletions */}
+                                  {/* Card bottom actions */}
                                   <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1.5 pl-1.5 gap-2">
                                     <div className="flex items-center space-x-1.5">
-                                      <button
-                                        onClick={() => openEditActivity(act)}
-                                        className="p-1 px-2 text-slate-550 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50/50 rounded-lg text-[10px] font-extrabold transition-all border border-slate-200/60 cursor-pointer"
-                                      >
-                                        Editar
-                                      </button>
-                                      <button
-                                        onClick={() => deleteActivity(act)}
-                                        className="p-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg text-[10px] font-extrabold transition-all border border-rose-100 cursor-pointer"
-                                      >
-                                        Excluir
+                                      <button onClick={() => openEditActivity(act)} className="p-1 px-2 text-slate-550 hover:text-emerald-800 bg-slate-50 hover:bg-emerald-50/50 rounded-lg text-[10px] font-extrabold transition-all border border-slate-200/60 cursor-pointer">Editar</button>
+                                      <button onClick={() => deleteActivity(act)} className="p-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg text-[10px] font-extrabold transition-all border border-rose-100 cursor-pointer">Excluir</button>
+                                      <button onClick={() => markActivityDone(act)} title="Marcar como concluída e mover ao histórico" className="p-1 px-2 text-emerald-700 hover:text-white hover:bg-emerald-700 rounded-lg text-[10px] font-extrabold transition-all border border-emerald-200 cursor-pointer flex items-center space-x-0.5">
+                                        <CheckCircle className="w-3 h-3" /><span>Concluir</span>
                                       </button>
                                     </div>
 
                                     {/* Quick shift controllers */}
                                     <div className="flex items-center space-x-1 font-mono text-xs text-slate-400">
                                       {columnIndex > 0 && (
-                                        <button
-                                          title="Mover para esquerda"
-                                          onClick={async () => {
-                                            const prevStatus = kanbanColumns[columnIndex - 1];
-                                            setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: prevStatus } : a));
-                                            await authFetch(`/api/activities/${act.id}`, {
-                                              method: 'PUT',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ ...act, status: prevStatus })
-                                            });
-                                            fetchInitialData();
-                                          }}
-                                          className="p-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] text-slate-700 font-bold transition-all cursor-pointer"
-                                        >
-                                          ◀
-                                        </button>
+                                        <button title="Mover para esquerda" onClick={async () => {
+                                          const prevStatus = kanbanColumns[columnIndex - 1];
+                                          setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: prevStatus } : a));
+                                          await authFetch(`/api/activities/${act.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...act, sector: act.sector || '', status: prevStatus }) });
+                                          fetchInitialData();
+                                        }} className="p-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[9px] text-slate-700 font-bold transition-all cursor-pointer">◀</button>
                                       )}
                                       {columnIndex < kanbanColumns.length - 1 && (
-                                        <button
-                                          title="Mover para direita"
-                                          onClick={async () => {
-                                            const nextStatus = kanbanColumns[columnIndex + 1];
-                                            setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: nextStatus } : a));
-                                            await authFetch(`/api/activities/${act.id}`, {
-                                              method: 'PUT',
-                                              headers: { 'Content-Type': 'application/json' },
-                                              body: JSON.stringify({ ...act, status: nextStatus })
-                                            });
-                                            fetchInitialData();
-                                          }}
-                                          className="p-1 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[9px] text-emerald-800 font-bold transition-all cursor-pointer"
-                                        >
-                                          ▶
-                                        </button>
+                                        <button title="Mover para direita" onClick={async () => {
+                                          const nextStatus = kanbanColumns[columnIndex + 1];
+                                          setActivities(prev => prev.map(a => a.id === act.id ? { ...a, status: nextStatus } : a));
+                                          await authFetch(`/api/activities/${act.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...act, sector: act.sector || '', status: nextStatus }) });
+                                          fetchInitialData();
+                                        }} className="p-1 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[9px] text-emerald-800 font-bold transition-all cursor-pointer">▶</button>
                                       )}
                                     </div>
                                   </div>
@@ -2250,6 +2496,57 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                     )}
                   </div>
                 </div>
+                )}
+
+                {/* --- HISTÓRICO DE CONCLUÍDOS --- */}
+                {activityView === 'history' && (
+                  <div className="space-y-4 animate-fade-in">
+                    {completedActivities.length === 0 ? (
+                      <div className="py-20 text-center text-slate-400 text-sm italic bg-white border border-dashed border-slate-200 rounded-2xl font-sans">
+                        Nenhuma atividade concluída ainda. Complete atividades no quadro ativo para vê-las aqui.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {completedActivities
+                          .filter(act => {
+                            const matchesCategory = activityCategoryFilter === 'Todos' || act.category === activityCategoryFilter;
+                            const matchesSector = activitySectorFilter === 'Todos' || act.sector === activitySectorFilter;
+                            const searchStr = activitySearchQuery.trim().toLowerCase();
+                            const matchesSearch = !searchStr || (act.title && act.title.toLowerCase().includes(searchStr)) || (act.responsible && act.responsible.toLowerCase().includes(searchStr));
+                            const matchesDateFrom = !activityDateFrom || (act.completed_at && act.completed_at.slice(0,10) >= activityDateFrom);
+                            const matchesDateTo = !activityDateTo || (act.completed_at && act.completed_at.slice(0,10) <= activityDateTo);
+                            return matchesCategory && matchesSector && matchesSearch && matchesDateFrom && matchesDateTo;
+                          })
+                          .map((act) => (
+                            <div key={act.id} className="bg-white border border-slate-200/60 rounded-2xl p-4 space-y-3 shadow-xs relative overflow-hidden">
+                              <div className={`absolute top-0 left-0 w-1 h-full ${act.category === 'Compras' ? 'bg-sky-500' : act.category === 'Ações' ? 'bg-purple-500' : act.category === 'Contratações Gerais' ? 'bg-teal-500' : 'bg-emerald-500'}`} />
+                              <div className="flex items-start justify-between gap-2 pl-1.5">
+                                <div className="flex items-center space-x-2">
+                                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <h4 className="font-extrabold text-slate-700 text-xs tracking-tight line-through decoration-slate-400">{act.title}</h4>
+                                </div>
+                                <span className="shrink-0 bg-emerald-50 text-emerald-800 text-[8px] font-black px-2 py-0.5 rounded-md border border-emerald-200 uppercase">Concluída</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 leading-relaxed pl-1.5 line-clamp-2">{act.description}</p>
+                              <div className="flex flex-wrap gap-1.5 pl-1.5">
+                                <span className="bg-slate-100 text-slate-600 text-[9px] font-bold px-2 py-0.5 rounded-md">📁 {act.category}</span>
+                                {act.sector && <span className="bg-violet-50 text-violet-800 text-[9px] font-bold px-2 py-0.5 rounded-md border border-violet-100">🏢 {act.sector}</span>}
+                                {act.responsible && <span className="bg-emerald-50 text-emerald-900 text-[9px] font-bold px-2 py-0.5 rounded-md">👤 {act.responsible}</span>}
+                                {act.completed_at && <span className="bg-indigo-50 text-indigo-800 text-[9px] font-mono font-extrabold px-2 py-0.5 rounded-md border border-indigo-100">✅ {act.completed_at.slice(0,10)}</span>}
+                              </div>
+                              <div className="border-t border-slate-100 pt-2.5 flex items-center justify-between pl-1.5">
+                                <button onClick={() => restoreActivity(act)} className="p-1 px-2 text-indigo-600 hover:text-white hover:bg-indigo-600 rounded-lg text-[10px] font-extrabold transition-all border border-indigo-200 cursor-pointer flex items-center space-x-1">
+                                  <RefreshCw className="w-3 h-3" /><span>Restaurar ao Quadro</span>
+                                </button>
+                                <button onClick={() => deleteActivity(act)} className="p-1 px-2 text-rose-500 hover:text-white hover:bg-rose-600 rounded-lg text-[10px] font-extrabold transition-all border border-rose-100 cursor-pointer">Excluir</button>
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* --- MODERN KANBAN CONFIRMATION MODALS --- */}
                 
@@ -2322,6 +2619,60 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate }: A
                   </div>
                 )}
 
+              </div>
+            )}
+
+            {/* SUBTAB: USUÁRIOS & PERMISSÕES */}
+            {activeSubTab === 'permissions' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="border-b border-slate-150 pb-4">
+                  <h2 className="text-lg font-bold text-slate-900">Usuários & Controle de Acesso</h2>
+                  <p className="text-xs text-slate-500">Gerencie quem pode acessar cada seção do painel. Defina visibilidade e permissões de edição por usuário.</p>
+                </div>
+
+                {/* Users list with permission toggles */}
+                <div className="space-y-4">
+                  {permUsers.length === 0 ? (
+                    <div className="py-16 text-center text-slate-400 italic text-sm bg-white border border-dashed border-slate-200 rounded-2xl">Nenhum usuário cadastrado.</div>
+                  ) : (
+                    permUsers.map((u) => {
+                      const p = u.permissions || {
+                        can_view_reports: 1, can_view_activities: 1, can_view_tracking: 0,
+                        can_view_blog: 0, can_view_vacancies: 1, can_view_candidates: 0,
+                        can_view_settings: 0, can_edit_activities: 0, can_edit_vacancies: 0,
+                        can_edit_candidates: 0, can_edit_blog: 0, can_edit_tracking: 0, can_edit_settings: 0
+                      };
+                      const isAdmin = u.role === 'admin';
+                      return (
+                        <div key={u.id} className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-xs space-y-4">
+                          {/* User header */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-9 h-9 rounded-full bg-emerald-800 flex items-center justify-center text-white text-xs font-black">{u.name.charAt(0).toUpperCase()}</div>
+                              <div>
+                                <p className="text-sm font-extrabold text-slate-900">{u.name}</p>
+                                <p className="text-[10px] text-slate-500 font-mono">{u.username} · <span className={`font-bold uppercase ${isAdmin ? 'text-amber-600' : 'text-indigo-600'}`}>{u.role}</span></p>
+                              </div>
+                            </div>
+                            {isAdmin && <span className="bg-amber-50 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full border border-amber-200 uppercase tracking-wide">Acesso Total</span>}
+                          </div>
+
+                          {!isAdmin && (
+                            <PermissionEditor
+                              userId={u.id}
+                              initialPerms={p}
+                              saving={permSaving === u.id}
+                              onSave={(perms) => savePermissions(u.id, perms)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Add new user form */}
+                <AddUserForm authFetch={authFetch} onCreated={fetchInitialData} showSuccess={showSuccess} />
               </div>
             )}
 

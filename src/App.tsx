@@ -36,21 +36,27 @@ function pathToView(path: string): string {
 
 export default function App() {
   const [currentView, setCurrentView] = React.useState<string>(() => pathToView(window.location.pathname));
-  const [isLoggedIn, setIsLoggedIn] = React.useState<boolean>(false);
-  const [user, setUser] = React.useState<any>(null);
+
+  // Inicializa sessão de forma síncrona para evitar flash da tela de login no refresh
+  const [user, setUser] = React.useState<any>(() => {
+    try {
+      const saved = localStorage.getItem('shigueno_user');
+      const token = localStorage.getItem('shigueno_token');
+      if (saved && token) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return null;
+  });
+  const [isLoggedIn, setIsLoggedIn] = React.useState<boolean>(() => {
+    return !!(localStorage.getItem('shigueno_user') && localStorage.getItem('shigueno_token'));
+  });
+
   const [siteSettings, setSiteSettings] = React.useState<Record<string, string>>({});
   const [activeProductTab, setActiveProductTab] = React.useState<'avicultura' | 'citricultura' | 'cafeicultura' | 'agropecuaria'>('avicultura');
   const [showSplash, setShowSplash] = React.useState<boolean>(false);
   const [isFadingOut, setIsFadingOut] = React.useState<boolean>(false);
 
-  // Restore session + settings on mount
+  // Carrega settings na montagem (sessão já foi restaurada síncronamente acima)
   React.useEffect(() => {
-    const savedUser = localStorage.getItem('shigueno_user');
-    const savedToken = localStorage.getItem('shigueno_token');
-    if (savedUser && savedToken) {
-      setUser(JSON.parse(savedUser));
-      setIsLoggedIn(true);
-    }
     fetchSettings();
   }, []);
 
@@ -114,7 +120,9 @@ export default function App() {
   const navigateTo = (viewKey: string, tab?: any) => {
     if (viewKey === 'produtos' && tab) setActiveProductTab(tab);
     const path = VIEW_TO_PATH[viewKey] || '/';
-    window.history.pushState({ view: viewKey }, '', path);
+    // pushState com URL completa sem hash — limpa qualquer #hash do admin
+    const fullPath = window.location.origin + path;
+    window.history.pushState({ view: viewKey }, '', fullPath);
     setCurrentView(viewKey);
     window.scrollTo({ top: 0, behavior: 'instant' as any });
   };
@@ -202,7 +210,7 @@ export default function App() {
         )}
         {currentView === 'admin' && (
           isLoggedIn ? (
-            <AdminPanel onLogout={handleLogout} onNavigate={handleNavigation} onSettingsUpdate={fetchSettings} />
+            <AdminPanel onLogout={handleLogout} onNavigate={handleNavigation} onSettingsUpdate={fetchSettings} user={user} token={localStorage.getItem('shigueno_token') || ''} />
           ) : (
             <LoginView onLoginSuccess={handleLoginSuccess} onNavigate={handleNavigation} />
           )

@@ -21,6 +21,8 @@ import chatbotRouter from './server/routes/chatbot.routes';
 import integrationRouter from './server/routes/integration.routes';
 import integrationAdminRouter from './server/routes/integration-admin.routes';
 import rhVisionPushRouter from './server/routes/rh-vision-push.routes';
+import permissionsRouter from './server/routes/permissions.routes';
+import boardsRouter from './server/routes/boards.routes';
 
 async function startServer() {
   const app = express();
@@ -50,8 +52,11 @@ async function startServer() {
   app.use('/api', routesRouter);
   app.use('/api', blogRouter);
   app.use('/api', activitiesRouter);
+  app.use('/api', boardsRouter);
+  app.use('/api', permissionsRouter);
   app.use('/api', chatbotRouter);
-  app.use('/api', integrationRouter);
+  // integrationRouter usa router.use(apiKeyMiddleware) sem path — deve ser montado com prefix /api/integration
+  app.use('/api/integration', integrationRouter);
   app.use('/api', integrationAdminRouter);
 
   // Image proxy route for Sr. Haruo Shigueno's original image (avoids Mixed Content HTTP block in browser HTTPS iframe)

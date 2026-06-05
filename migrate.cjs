@@ -126,18 +126,72 @@ async function run() {
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS activities (
-      id          INT AUTO_INCREMENT PRIMARY KEY,
-      title       VARCHAR(255) NOT NULL,
-      description LONGTEXT,
-      category    VARCHAR(100) DEFAULT 'Ações',
-      status      VARCHAR(50)  NOT NULL DEFAULT 'A Fazer',
-      priority    VARCHAR(50)  DEFAULT 'Média',
-      responsible VARCHAR(255),
-      due_date    DATE,
-      created_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
-      updated_at  DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      id               INT AUTO_INCREMENT PRIMARY KEY,
+      title            VARCHAR(255) NOT NULL,
+      description      LONGTEXT,
+      category         VARCHAR(100) DEFAULT 'Ações',
+      sector           VARCHAR(100) DEFAULT '',
+      status           VARCHAR(50)  NOT NULL DEFAULT 'A Fazer',
+      priority         VARCHAR(50)  DEFAULT 'Média',
+      responsible      VARCHAR(255),
+      due_date         DATE,
+      completed_at     DATETIME     DEFAULT NULL,
+      created_by       INT          DEFAULT NULL,
+      created_by_name  VARCHAR(255) DEFAULT '',
+      visibility       ENUM('public','private') DEFAULT 'public',
+      shared_with      JSON         DEFAULT NULL,
+      board_id         INT          DEFAULT NULL,
+      created_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at       DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('activities');
+
+  // Adiciona colunas novas se já existir tabela (idempotente)
+  // ALTER TABLE idempotente — ignora erro se coluna já existir (MySQL 5.7 não suporta IF NOT EXISTS em ALTER)
+  const addCol = (sql) => db.execute(sql).catch(() => {});
+  await addCol(`ALTER TABLE activities ADD COLUMN sector VARCHAR(100) DEFAULT ''`);
+  await addCol(`ALTER TABLE activities ADD COLUMN completed_at DATETIME DEFAULT NULL`);
+  await addCol(`ALTER TABLE activities ADD COLUMN created_by INT DEFAULT NULL`);
+  await addCol(`ALTER TABLE activities ADD COLUMN created_by_name VARCHAR(255) DEFAULT ''`);
+  await addCol(`ALTER TABLE activities ADD COLUMN visibility ENUM('public','private') DEFAULT 'public'`);
+  await addCol(`ALTER TABLE activities ADD COLUMN shared_with JSON DEFAULT NULL`);
+  await addCol(`ALTER TABLE activities ADD COLUMN board_id INT DEFAULT NULL`);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS boards (
+      id           INT AUTO_INCREMENT PRIMARY KEY,
+      name         VARCHAR(255) NOT NULL,
+      description  LONGTEXT,
+      color        VARCHAR(50)  DEFAULT 'emerald',
+      icon         VARCHAR(50)  DEFAULT 'layout-grid',
+      columns_json JSON         NOT NULL,
+      created_by   INT          DEFAULT NULL,
+      created_at   DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at   DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('boards');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS user_permissions (
+      id                   INT AUTO_INCREMENT PRIMARY KEY,
+      user_id              INT NOT NULL UNIQUE,
+      can_view_reports     TINYINT(1) NOT NULL DEFAULT 1,
+      can_view_activities  TINYINT(1) NOT NULL DEFAULT 1,
+      can_view_tracking    TINYINT(1) NOT NULL DEFAULT 0,
+      can_view_blog        TINYINT(1) NOT NULL DEFAULT 0,
+      can_view_vacancies   TINYINT(1) NOT NULL DEFAULT 1,
+      can_view_candidates  TINYINT(1) NOT NULL DEFAULT 0,
+      can_view_settings    TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_activities  TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_vacancies   TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_candidates  TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_blog        TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_tracking    TINYINT(1) NOT NULL DEFAULT 0,
+      can_edit_settings    TINYINT(1) NOT NULL DEFAULT 0,
+      updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('user_permissions');
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS blog_categories (

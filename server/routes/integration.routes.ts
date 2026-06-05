@@ -7,8 +7,8 @@ const router = Router();
 // All integration routes require API Key
 router.use(integrationAuthMiddleware);
 
-// GET /api/integration/me — info do cliente autenticado
-router.get('/integration/me', (req: Request, res: Response) => {
+// GET /api/me — info do cliente autenticado
+router.get('/me', (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   res.json({
     success: true,
@@ -20,17 +20,17 @@ router.get('/integration/me', (req: Request, res: Response) => {
   });
 });
 
-// GET /api/integration/vacancies — listar vagas do cliente
-router.get('/integration/vacancies', async (req: Request, res: Response) => {
+// GET /api/vacancies — listar vagas do cliente
+router.get('/vacancies', async (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   const db = await getDb();
   const vacancies = await db.getIntegrationVacancies(client.id);
   res.json({ success: true, data: vacancies });
 });
 
-// POST /api/integration/vacancies — criar ou sincronizar vaga
+// POST /api/vacancies — criar ou sincronizar vaga
 // Body: { external_id, title, department, description, location, requirements, status }
-router.post('/integration/vacancies', async (req: Request, res: Response) => {
+router.post('/vacancies', async (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   const { external_id, title, department, description, location, requirements, status } = req.body;
 
@@ -53,17 +53,17 @@ router.post('/integration/vacancies', async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: vacancy });
 });
 
-// GET /api/integration/candidates — listar candidatos do cliente
-router.get('/integration/candidates', async (req: Request, res: Response) => {
+// GET /api/candidates — listar candidatos do cliente
+router.get('/candidates', async (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   const db = await getDb();
   const candidates = await db.getIntegrationCandidates(client.id);
   res.json({ success: true, data: candidates });
 });
 
-// POST /api/integration/candidates — enviar candidato
+// POST /api/candidates — enviar candidato
 // Body: { external_id, name, email, phone, vacancy_external_id?, cv_text, status? }
-router.post('/integration/candidates', async (req: Request, res: Response) => {
+router.post('/candidates', async (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   const { external_id, name, email, phone, vacancy_external_id, cv_text, status } = req.body;
 
@@ -94,9 +94,9 @@ router.post('/integration/candidates', async (req: Request, res: Response) => {
   res.status(201).json({ success: true, data: candidate });
 });
 
-// PATCH /api/integration/candidates/:external_id/status — atualizar status
+// PATCH /api/candidates/:external_id/status — atualizar status
 // Body: { status }
-router.patch('/integration/candidates/:external_id/status', async (req: Request, res: Response) => {
+router.patch('/candidates/:external_id/status', async (req: Request, res: Response) => {
   const client = (req as any).integrationClient;
   const { external_id } = req.params;
   const { status } = req.body;
