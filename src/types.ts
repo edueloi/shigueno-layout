@@ -8,19 +8,6 @@ export interface Vacancy {
   status: string; // 'Ativa', 'Pausada'
 }
 
-export interface Candidate {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  vacancy_id: number | null;
-  vacancy_title?: string;
-  cv_text: string;
-  applied_at: string;
-  status: string; // 'Novo', 'Em Análise', 'Aprovado', 'Recusado'
-  ai_analysis?: any;
-}
-
 export interface Supplier {
   id: number;
   name: string;
@@ -66,7 +53,25 @@ export interface DashboardStats {
   totalCandidates: number;
   totalSuppliers: number;
   totalCattleHead: number;
+  totalActivities?: number;
+  doneActivities?: number;
   cityDistribution: Array<{ city: string; value: number; supplier_count: number }>;
   candidatesByVacancy: Array<{ label: string; value: number }>;
-  productionStats: Array<{ month: string; ovos: number; citros: number; cafe: number }>;
+  candidatesByStatus?: Array<{ label: string; value: number }>;
+  recentCandidates?: Array<{ id: number; name: string; email: string; status: string; applied_at: string; vacancy_title?: string }>;
+  productionStats: Array<{ month: string; year?: number; ovos: number; citros: number; cafe: number; nelore?: number }>;
+}
+
+export interface Candidate {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  vacancy_id: number | null;
+  vacancy_title?: string;
+  cv_text: string;
+  cv_filename?: string;
+  applied_at: string;
+  status: string;
+  ai_analysis?: any;
 }

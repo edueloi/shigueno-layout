@@ -13,7 +13,7 @@ import authRouter from './server/routes/auth.routes';
 import vacanciesRouter from './server/routes/vacancies.routes';
 import candidatesRouter from './server/routes/candidates.routes';
 import suppliersRouter from './server/routes/suppliers.routes';
-import dashboardRouter from './server/routes/dashboard.routes';
+import dashboardRouter, { ensureProductionTable } from './server/routes/dashboard.routes';
 import routesRouter from './server/routes/routes.routes';
 import blogRouter from './server/routes/blog.routes';
 import activitiesRouter from './server/routes/activities.routes';
@@ -23,10 +23,27 @@ import integrationAdminRouter from './server/routes/integration-admin.routes';
 import rhVisionPushRouter from './server/routes/rh-vision-push.routes';
 import permissionsRouter from './server/routes/permissions.routes';
 import boardsRouter from './server/routes/boards.routes';
+import userPreferencesRouter, { ensureUserPreferencesTable } from './server/routes/user-preferences.routes';
+import employeesRouter, { ensureEmployeesTable } from './server/routes/employees.routes';
+import financeiroRouter, { ensureFinanceiroTables } from './server/routes/financeiro.routes';
+import recruitmentRouter, { ensureRecruitmentTables } from './server/routes/recruitment.routes';
+import onboardingRouter from './server/routes/onboarding.routes';
 
 async function startServer() {
   const app = express();
   const PORT = 3008;
+
+  // Garante tabelas opcionais existam antes de servir
+  try {
+    await ensureProductionTable();
+    await ensureUserPreferencesTable();
+    await ensureEmployeesTable();
+    await ensureFinanceiroTables();
+    await ensureRecruitmentTables();
+    console.log('Tabelas auxiliares verificadas/criadas com sucesso.');
+  } catch (e) {
+    console.warn('Aviso ao verificar tabelas auxiliares:', e);
+  }
 
   // Global request logging middleware
   app.use(requestLogger);
@@ -54,6 +71,11 @@ async function startServer() {
   app.use('/api', activitiesRouter);
   app.use('/api', boardsRouter);
   app.use('/api', permissionsRouter);
+  app.use('/api', userPreferencesRouter);
+  app.use('/api', employeesRouter);
+  app.use('/api', financeiroRouter);
+  app.use('/api', recruitmentRouter);
+  app.use('/api', onboardingRouter);
   app.use('/api', chatbotRouter);
   // integrationRouter usa router.use(apiKeyMiddleware) sem path — deve ser montado com prefix /api/integration
   app.use('/api/integration', integrationRouter);
@@ -74,7 +96,7 @@ async function startServer() {
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       res.setHeader('Content-Type', 'image/jpeg');
-      res.setHeader('Cache-Control', 'public, max-age=86450'); // Cache for 24h
+      res.setHeader('Cache-Control', 'public, max-age=86450');
       res.send(buffer);
     } catch (error) {
       console.warn('Could not load Haruo Shigueno original photo over http proxy, redirecting to safe placeholder.', error);
@@ -83,7 +105,6 @@ async function startServer() {
   });
 
   // --- VITE WEB MIDDLEWARE OR STATIC ---
-
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -93,8 +114,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    // Serve index.html for SPA fallback
-    app.get('*', (req, res) => {
+    app.get('*', (_req: express.Request, res: express.Response) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

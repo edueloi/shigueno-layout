@@ -1,11 +1,18 @@
 import React from 'react';
-import { 
-  Users, Briefcase, TrendingUp, Phone, MapPin, Plus, Trash2, 
+import {
+  Users, Briefcase, TrendingUp, Phone, MapPin, Plus, Trash2,
   Edit, CheckCircle2, ChevronRight, X, AlertCircle, RefreshCw, BarChart2,
   FileText, Calendar, Filter, Leaf, Download, Menu, Home, LogOut,
   Truck, Navigation, Compass, Map, Activity, Play, CheckCircle, Clock, Settings,
-  LayoutGrid, Search, Sparkles, PlusCircle, Award, GripVertical
+  LayoutGrid, Search, Sparkles, PlusCircle, Award, GripVertical, ChevronDown,
+  Building2, UserCog, Layers, BookOpen, DollarSign
 } from 'lucide-react';
+import { useUserPreferences } from '../hooks/useUserPreferences';
+import { Portal } from '../hooks/usePortal';
+import EmployeesTab from './EmployeesTab';
+import CandidatesTab from './CandidatesTab';
+import CandidatePage from './CandidatePage';
+import FinanceiroTab from './FinanceiroTab';
 import { 
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell 
@@ -18,7 +25,7 @@ import ActivityBoard from './ActivityBoard';
 
 interface AdminPanelProps {
   onLogout: () => void;
-  onNavigate: (viewKey: string) => void;
+  onNavigate: (viewKey: string, param?: any) => void;
   onSettingsUpdate?: () => void;
   user?: { id: number; username: string; name: string; role: string } | null;
   token?: string;
@@ -52,7 +59,7 @@ const getAiData = (candidate: any) => {
 };
 
 // ── Admin sub-route mapping ────────────────────────────────────────────────────
-type SubTab = 'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'tracking' | 'blog' | 'settings' | 'permissions';
+type SubTab = 'reports' | 'suppliers' | 'vacancies' | 'candidates' | 'equipe' | 'financeiro' | 'tracking' | 'blog' | 'settings' | 'permissions';
 
 const ADMIN_HASH: Record<string, SubTab> = {
   '#dashboard':   'reports',
@@ -61,6 +68,8 @@ const ADMIN_HASH: Record<string, SubTab> = {
   '#blog':        'blog',
   '#vagas':       'vacancies',
   '#candidatos':  'candidates',
+  '#equipe':      'equipe',
+  '#financeiro':  'financeiro',
   '#configuracoes':'settings',
   '#permissoes':  'permissions',
 };
@@ -71,6 +80,8 @@ const TAB_TO_HASH: Record<SubTab, string> = {
   blog:        '/admin#blog',
   vacancies:   '/admin#vagas',
   candidates:  '/admin#candidatos',
+  equipe:      '/admin#equipe',
+  financeiro:  '/admin#financeiro',
   settings:    '/admin#configuracoes',
   permissions: '/admin#permissoes',
 };
@@ -81,6 +92,8 @@ const TAB_TITLES: Record<SubTab, string> = {
   blog:        'Blog | Painel Shigueno',
   vacancies:   'Vagas | Painel Shigueno',
   candidates:  'Candidatos | Painel Shigueno',
+  equipe:      'Equipe | Painel Shigueno',
+  financeiro:  'Financeiro | Painel Shigueno',
   settings:    'Configurações | Painel Shigueno',
   permissions: 'Permissões | Painel Shigueno',
 };
@@ -236,14 +249,269 @@ function AddUserForm({ authFetch, onCreated, showSuccess }: {
   );
 }
 
+// ── Editor inline de dados reais de produção ─────────────────────────────────
+
+function ProductionEditor({ productionStats, onSaved, showSuccess }: {
+  productionStats: Array<{ month: string; year?: number; ovos: number; citros: number; cafe: number; nelore?: number }>;
+  onSaved: () => void;
+  showSuccess: (msg: string) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  type ProdRow = { ovos: number; citros: number; cafe: number; nelore: number };
+  const [editing, setEditing] = React.useState<Record<string, ProdRow>>(() => {
+    const init: Record<string, any> = {};
+    for (const s of productionStats) {
+      init[s.month] = { ovos: s.ovos, citros: Number(s.citros), cafe: s.cafe, nelore: s.nelore || 0 };
+    }
+    return init;
+  });
+  const [saving, setSaving] = React.useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      for (const month of Object.keys(editing)) {
+        const vals = editing[month];
+        const row = productionStats.find(s => s.month === month);
+        await fetch(`/api/dashboard/production/${month}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ year: row?.year || 2025, ovos: vals.ovos, citros: vals.citros, cafe: vals.cafe, nelore: vals.nelore }),
+        });
+      }
+      showSuccess('Dados de produção atualizados no banco com sucesso!');
+      setOpen(false);
+      onSaved();
+    } catch { /* silently log */ } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+      >
+        <div className="flex items-center space-x-3">
+          <div className="p-2 bg-emerald-50 rounded-xl">
+            <Edit className="w-4 h-4 text-emerald-700" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-slate-900 uppercase tracking-wide">Atualizar Dados Reais de Produção</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Edite os valores mensais reais diretamente no banco de dados MySQL</p>
+          </div>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 px-6 py-5 space-y-4 animate-fade-in">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100">
+                  <th className="text-left py-2 pr-4 font-mono">Mês</th>
+                  <th className="text-right py-2 px-3">Ovos (cx)</th>
+                  <th className="text-right py-2 px-3">Citros (t)</th>
+                  <th className="text-right py-2 px-3">Café (sc)</th>
+                  <th className="text-right py-2 pl-3">Nelore (cab)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {productionStats.map(s => (
+                  <tr key={s.month} className="group hover:bg-slate-50/50">
+                    <td className="py-2.5 pr-4 font-black text-slate-900 font-mono">{s.month}</td>
+                    {(['ovos', 'citros', 'cafe', 'nelore'] as const).map(field => (
+                      <td key={field} className="py-2.5 px-3 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          value={editing[s.month]?.[field] ?? 0}
+                          onChange={e => setEditing(prev => ({
+                            ...prev,
+                            [s.month]: { ...prev[s.month], [field]: Number(e.target.value) }
+                          }))}
+                          className="w-24 text-right bg-white border border-slate-200 group-hover:border-emerald-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:border-emerald-600 transition-colors"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+            <button
+              onClick={() => setOpen(false)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-60 flex items-center space-x-2"
+            >
+              {saving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              <span>{saving ? 'Salvando...' : 'Salvar Dados Reais'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sidebar Nav com grupos acordeão ──────────────────────────────────────────
+
+type NavGroup = {
+  groupLabel: string;
+  groupIcon: React.ElementType;
+  items: Array<{ key: SubTab; label: string; icon: React.ElementType; permKey: string }>;
+};
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    groupLabel: 'Visão Geral',
+    groupIcon: BarChart2,
+    items: [
+      { key: 'reports',    label: 'Dashboard & KPIs',       icon: BarChart2,  permKey: 'can_view_reports' },
+    ],
+  },
+  {
+    groupLabel: 'Recursos Humanos',
+    groupIcon: Users,
+    items: [
+      { key: 'equipe',     label: 'Equipe & Hierarquia',    icon: UserCog,    permKey: 'can_view_candidates' },
+      { key: 'vacancies',  label: 'Gestão de Vagas',        icon: Briefcase,  permKey: 'can_view_vacancies' },
+      { key: 'candidates', label: 'Seleção & Currículos',   icon: Users,      permKey: 'can_view_candidates' },
+    ],
+  },
+  {
+    groupLabel: 'Financeiro',
+    groupIcon: DollarSign,
+    items: [
+      { key: 'financeiro', label: 'Módulo Financeiro',      icon: DollarSign, permKey: 'can_view_reports' },
+    ],
+  },
+  {
+    groupLabel: 'Gestão Operacional',
+    groupIcon: Layers,
+    items: [
+      { key: 'suppliers',  label: 'Quadro de Atividades',   icon: LayoutGrid, permKey: 'can_view_activities' },
+      { key: 'tracking',   label: 'Rastreamento & Frotas',  icon: Truck,      permKey: 'can_view_tracking' },
+    ],
+  },
+  {
+    groupLabel: 'Conteúdo & Site',
+    groupIcon: BookOpen,
+    items: [
+      { key: 'blog',       label: 'Gestor do Blog',         icon: FileText,   permKey: 'can_view_blog' },
+      { key: 'settings',   label: 'Dados do Site',          icon: Settings,   permKey: 'can_view_settings' },
+    ],
+  },
+  {
+    groupLabel: 'Administração',
+    groupIcon: UserCog,
+    items: [
+      { key: 'permissions', label: 'Usuários & Permissões', icon: Award,      permKey: 'admin_only' },
+    ],
+  },
+];
+
+function SidebarNav({ activeSubTab, currentUserRole, canView, onNavigate }: {
+  activeSubTab: SubTab;
+  currentUserRole: string;
+  canView: (key: string) => boolean;
+  onNavigate: (tab: SubTab) => void;
+}) {
+  // Abre o grupo que contém a aba ativa por padrão
+  const defaultOpen = NAV_GROUPS.findIndex(g => g.items.some(i => i.key === activeSubTab));
+  const [openGroups, setOpenGroups] = React.useState<Set<number>>(() => new Set([defaultOpen >= 0 ? defaultOpen : 0]));
+
+  const toggleGroup = (idx: number) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  };
+
+  return (
+    <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
+      {NAV_GROUPS.map((group, groupIdx) => {
+        const visibleItems = group.items.filter(item => {
+          if (item.permKey === 'admin_only') return currentUserRole === 'admin';
+          return canView(item.permKey);
+        });
+        if (visibleItems.length === 0) return null;
+
+        const isOpen = openGroups.has(groupIdx);
+        const GroupIcon = group.groupIcon;
+        const hasActive = visibleItems.some(i => i.key === activeSubTab);
+
+        return (
+          <div key={groupIdx} className="space-y-0.5">
+            {/* Group header */}
+            <button
+              onClick={() => toggleGroup(groupIdx)}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer font-mono ${
+                hasActive
+                  ? 'text-amber-400 bg-emerald-900/40'
+                  : 'text-emerald-500/70 hover:text-emerald-300 hover:bg-emerald-900/20'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <GroupIcon className="w-3.5 h-3.5 shrink-0" />
+                <span>{group.groupLabel}</span>
+              </div>
+              <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {/* Items */}
+            {isOpen && (
+              <div className="pl-2 space-y-0.5">
+                {visibleItems.map(item => {
+                  const Icon = item.icon;
+                  const active = activeSubTab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => onNavigate(item.key)}
+                      className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
+                        active
+                          ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                          : 'text-emerald-200 hover:bg-emerald-900/50 hover:text-white'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-emerald-400'}`} />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, user, token = '' }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>(hashToTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+  // Sub-view de ficha completa do candidato (renderizada dentro do painel, sidebar preservada)
+  const [viewingCandidateUid, setViewingCandidateUid] = React.useState<string | null>(null);
 
   // Current user identity from props (no localStorage)
   const currentUserRole = user?.role || 'operador';
-  const currentUserId = user?.id || null;
+  const currentUserId = user?.id ?? null;
   const currentUserName = user?.name || 'Gestor';
+
+  // Preferências do usuário persistidas no backend (sem localStorage)
+  const { prefs: userPrefs, setPref: saveUserPref } = useUserPreferences(currentUserId);
 
   // Load current user permissions from backend
   const [currentUserPerms, setCurrentUserPerms] = React.useState<Record<string, number> | null>(null);
@@ -266,7 +534,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
 
   // Sync hash → tab (browser back/forward)
   React.useEffect(() => {
-    const onHash = () => setActiveSubTab(hashToTab());
+    const onHash = () => { setActiveSubTab(hashToTab()); setViewingCandidateUid(null); };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -363,16 +631,18 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
 
   React.useEffect(() => {
     if (viewingCandidate) {
-      setRecruiterNotes(localStorage.getItem(`recruiter-notes-${viewingCandidate.id}`) || '');
+      const key = `recruiter-notes-${viewingCandidate.id}`;
+      setRecruiterNotes(userPrefs[key] || '');
     } else {
       setRecruiterNotes('');
     }
-  }, [viewingCandidate?.id]);
+  }, [viewingCandidate?.id, userPrefs]);
 
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (viewingCandidate) {
-      localStorage.setItem(`recruiter-notes-${viewingCandidate.id}`, recruiterNotes);
-      showSuccess('Parecer interno do candidato registrado localmente!');
+      const key = `recruiter-notes-${viewingCandidate.id}`;
+      await saveUserPref(key, recruiterNotes);
+      showSuccess('Parecer interno salvo no servidor com sucesso!');
     }
   };
 
@@ -1407,46 +1677,18 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
           </div>
         </div>
 
-        {/* NAVIGATION MENUS */}
-        <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto scrollbar-thin">
-          {([
-            { key: 'reports',     label: 'Relatórios Gerais',    icon: BarChart2,  permKey: 'can_view_reports' },
-            { key: 'suppliers',   label: 'Quadro de Atividades', icon: LayoutGrid, permKey: 'can_view_activities' },
-            { key: 'tracking',    label: 'Rastreamento & Frotas',icon: Truck,      permKey: 'can_view_tracking' },
-            { key: 'blog',        label: 'Gestor do Blog',       icon: FileText,   permKey: 'can_view_blog' },
-            { key: 'vacancies',   label: 'Cadastro de Vagas',    icon: Briefcase,  permKey: 'can_view_vacancies' },
-            { key: 'candidates',  label: 'Seleção & Currículos', icon: Users,      permKey: 'can_view_candidates' },
-            { key: 'settings',    label: 'Dados do Site',        icon: Settings,   permKey: 'can_view_settings' },
-            { key: 'permissions', label: 'Usuários & Permissões',icon: Award,      permKey: 'admin_only' },
-          ] as Array<{ key: string; label: string; icon: React.ElementType; permKey: string }>)
-            .filter(item => {
-              if (item.permKey === 'admin_only') return currentUserRole === 'admin';
-              return canView(item.permKey);
-            })
-            .map((item) => {
-              const IconComponent = item.icon;
-              const active = activeSubTab === item.key;
-              return (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    const tab = item.key as SubTab;
-                    window.history.pushState(null, '', TAB_TO_HASH[tab]);
-                    setActiveSubTab(tab);
-                    setMobileSidebarOpen(false);
-                  }}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
-                    active
-                      ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                      : 'text-emerald-250 hover:bg-emerald-900/50 hover:text-white'
-                  }`}
-                >
-                  <IconComponent className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-emerald-400'}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-        </nav>
+        {/* NAVIGATION MENUS — grupos acordeão por departamento */}
+        <SidebarNav
+          activeSubTab={activeSubTab}
+          currentUserRole={currentUserRole}
+          canView={canView}
+          onNavigate={(tab) => {
+            window.history.pushState(null, '', TAB_TO_HASH[tab]);
+            setActiveSubTab(tab);
+            setViewingCandidateUid(null);
+            setMobileSidebarOpen(false);
+          }}
+        />
 
         {/* BOTTOM NAV / ACTIONS */}
         <div className="p-4 border-t border-emerald-900/60 bg-[#06150c]/80 space-y-1.5">
@@ -1479,42 +1721,87 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
             >
               <Menu className="w-5 h-5" />
             </button>
-            
+
             <div>
-              <h1 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none">
-                {activeSubTab === 'reports' && 'Painel de Controle — Estatísticas'}
-                {activeSubTab === 'suppliers' && 'Quadro de Atividades Shigueno'}
-                {activeSubTab === 'tracking' && 'Rastreamento de Transportes & Frotas'}
-                {activeSubTab === 'blog' && 'Console Editorial — Gerenciamento do Blog'}
-                {activeSubTab === 'vacancies' && 'Gestão de Oportunidades Empregatícias'}
-                {activeSubTab === 'candidates' && 'Recrutamento & Seleção de Talentos'}
-                {activeSubTab === 'settings' && 'Dados e Divulgação da Instituição'}
-                {activeSubTab === 'permissions' && 'Usuários & Controle de Acesso ao Painel'}
-              </h1>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${
+                  activeSubTab === 'reports' ? 'bg-emerald-500' :
+                  activeSubTab === 'vacancies' || activeSubTab === 'candidates' || activeSubTab === 'equipe' ? 'bg-blue-500' :
+                  activeSubTab === 'suppliers' ? 'bg-purple-500' :
+                  activeSubTab === 'tracking' ? 'bg-amber-500' :
+                  'bg-slate-400'
+                } animate-pulse`} />
+                <h1 className="text-xs sm:text-sm font-black text-slate-800 tracking-tight leading-none">
+                  {activeSubTab === 'reports' && 'Dashboard & KPIs'}
+                  {activeSubTab === 'suppliers' && 'Quadro de Atividades'}
+                  {activeSubTab === 'tracking' && 'Rastreamento & Frotas'}
+                  {activeSubTab === 'blog' && 'Gestor do Blog'}
+                  {activeSubTab === 'vacancies' && 'Gestão de Vagas'}
+                  {activeSubTab === 'candidates' && !viewingCandidateUid && 'Seleção & Currículos'}
+                  {activeSubTab === 'candidates' && viewingCandidateUid && 'Ficha do Candidato'}
+                  {activeSubTab === 'equipe' && 'Equipe & Hierarquia'}
+                  {activeSubTab === 'financeiro' && 'Módulo Financeiro'}
+                  {activeSubTab === 'settings' && 'Dados do Site'}
+                  {activeSubTab === 'permissions' && 'Usuários & Permissões'}
+                </h1>
+              </div>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5 hidden sm:block">
+                Grupo Shigueno · {currentUserName} · {currentUserRole}
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            {/* Badges de resumo rápido */}
+            {stats && (
+              <div className="hidden md:flex items-center space-x-2">
+                <span className="inline-flex items-center space-x-1 text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-lg">
+                  <Briefcase className="w-3 h-3" />
+                  <span>{stats.totalVacancies} vagas</span>
+                </span>
+                <span className="inline-flex items-center space-x-1 text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-lg">
+                  <Users className="w-3 h-3" />
+                  <span>{stats.totalCandidates} candidatos</span>
+                </span>
+              </div>
+            )}
+
             <button
               onClick={fetchInitialData}
-              title="Sincronizar base SQLite"
-              className="p-2 px-3 rounded-xl transition-all hover:bg-slate-50 hover:text-emerald-800 text-slate-500 flex items-center space-x-1.5 border border-slate-150 shadow-2xs text-[11px] font-bold cursor-pointer"
+              title="Sincronizar banco de dados"
+              className={`p-2 px-3 rounded-xl transition-all hover:bg-slate-50 hover:text-emerald-800 text-slate-500 flex items-center space-x-1.5 border border-slate-150 shadow-2xs text-[11px] font-bold cursor-pointer ${loading ? 'opacity-60 pointer-events-none' : ''}`}
             >
-              <RefreshCw className="w-3.5 h-3.5 animate-pulse" />
-              <span className="hidden xs:inline">Sincronizar</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-700' : ''}`} />
+              <span className="hidden sm:inline">Atualizar</span>
             </button>
-            
+
             <button
               onClick={() => onNavigate('home')}
-              className="p-2 px-3 border border-slate-150 rounded-xl hover:bg-slate-50 text-slate-600 text-xs font-bold shadow-2xs hidden xs:inline-block cursor-pointer"
+              className="p-2 px-3 border border-slate-150 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-800 text-slate-600 text-xs font-bold shadow-2xs hidden xs:inline-flex items-center space-x-1.5 cursor-pointer"
             >
-              Ir ao Site
+              <Home className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Ir ao Site</span>
             </button>
           </div>
         </header>
 
         {/* CONTAINER WORKSPACE */}
-        <main className="flex-grow p-4 md:p-8 w-full space-y-6">
+        <main className={`flex-grow w-full ${viewingCandidateUid ? 'p-0' : 'p-4 md:p-8 space-y-6'}`}>
+          {/* ── Ficha completa inline (sidebar preservada) ── */}
+          {viewingCandidateUid && (
+            <CandidatePage
+              uid={viewingCandidateUid}
+              token={token}
+              userName={currentUserName}
+              onBack={() => {
+                setViewingCandidateUid(null);
+                // Restaura o hash na URL para candidatos
+                window.history.replaceState(null, '', TAB_TO_HASH['candidates']);
+              }}
+            />
+          )}
+
+          {!viewingCandidateUid && (<>
           {successNotice && (
             <div className="bg-emerald-50 border border-emerald-250 text-emerald-905 rounded-xl p-4 text-xs font-bold shadow-xs animate-slide-in flex items-center space-x-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
@@ -1711,49 +1998,122 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                   </div>
                 </div>
 
-                {/* Ativos Administrativos, Talentos e Gestão de Parceiros */}
+                {/* KPIs Corporativos — Vagas, RH, Atividades & Parceiros */}
                 <div className="space-y-4 animate-fade-in font-sans">
                   <div className="flex items-center space-x-2 text-slate-950">
-                    <Users className="w-4 h-4 text-slate-700" />
-                    <h3 className="text-xs font-black uppercase tracking-wider font-mono">Gestão Corporativa, Vagas & Parceiros</h3>
+                    <Building2 className="w-4 h-4 text-slate-700" />
+                    <h3 className="text-xs font-black uppercase tracking-wider font-mono">Gestão Corporativa — Indicadores Gerais</h3>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
 
-                    <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] transition-all duration-300 select-none">
-                      <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl shrink-0">
-                        <Users className="w-5 h-5 flex items-center justify-center" />
+                    {/* Vagas ativas */}
+                    <button
+                      onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['vacancies']); setActiveSubTab('vacancies'); setViewingCandidateUid(null); }}
+                      className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] hover:border-blue-200 border border-transparent transition-all duration-300 select-none cursor-pointer text-left group"
+                    >
+                      <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl w-fit group-hover:bg-blue-100 transition-colors">
+                        <Briefcase className="w-4 h-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide truncate">Parceiros de Pecuária</p>
-                        <h4 className="text-lg font-black text-slate-900 mt-0.5 truncate">{filteredSuppliersForReports.length} pecuaristas</h4>
-                        <p className="text-[9px] text-slate-400 font-mono">De total de {stats.totalSuppliers} cadastrados</p>
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">Vagas Abertas</p>
+                        <h4 className="text-xl font-black text-slate-900 mt-0.5">{stats.totalVacancies}</h4>
+                        <p className="text-[9px] text-blue-600 font-bold">Ver vagas →</p>
+                      </div>
+                    </button>
+
+                    {/* Currículos */}
+                    <button
+                      onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['candidates']); setActiveSubTab('candidates'); setViewingCandidateUid(null); }}
+                      className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] hover:border-indigo-200 border border-transparent transition-all duration-300 select-none cursor-pointer text-left group"
+                    >
+                      <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl w-fit group-hover:bg-indigo-100 transition-colors">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">Candidatos</p>
+                        <h4 className="text-xl font-black text-slate-900 mt-0.5">{stats.totalCandidates}</h4>
+                        <p className="text-[9px] text-indigo-600 font-bold">Banco talentos →</p>
+                      </div>
+                    </button>
+
+                    {/* Atividades */}
+                    <button
+                      onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['suppliers']); setActiveSubTab('suppliers'); setViewingCandidateUid(null); }}
+                      className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] hover:border-purple-200 border border-transparent transition-all duration-300 select-none cursor-pointer text-left group"
+                    >
+                      <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl w-fit group-hover:bg-purple-100 transition-colors">
+                        <LayoutGrid className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">Atividades</p>
+                        <h4 className="text-xl font-black text-slate-900 mt-0.5">{stats.totalActivities || 0}</h4>
+                        <p className="text-[9px] text-purple-600 font-bold">{stats.doneActivities || 0} concluídas →</p>
+                      </div>
+                    </button>
+
+                    {/* Parceiros */}
+                    <div className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] border border-transparent transition-all duration-300 select-none">
+                      <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl w-fit">
+                        <Users className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">Pecuaristas</p>
+                        <h4 className="text-xl font-black text-slate-900 mt-0.5">{filteredSuppliersForReports.length}</h4>
+                        <p className="text-[9px] text-slate-400 font-mono">de {stats.totalSuppliers} total</p>
                       </div>
                     </div>
 
-                    <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] transition-all duration-300 select-none">
-                      <div className="p-3 bg-blue-50 text-blue-600 rounded-xl shrink-0">
-                        <Briefcase className="w-5 h-5" />
-                      </div>
+                    {/* Rebanho total */}
+                    <div className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] border border-transparent transition-all duration-300 select-none">
+                      <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl w-fit text-lg leading-none">🐂</div>
                       <div className="min-w-0">
-                        <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide truncate">Vagas de Recrutamento</p>
-                        <h4 className="text-lg font-black text-slate-900 mt-0.5 truncate">{stats.totalVacancies} ativas</h4>
-                        <p className="text-[9px] text-slate-450 font-mono">Divulgadas no site</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-white p-5 rounded-2xl flex items-center space-x-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] transition-all duration-300 select-none">
-                      <div className="p-3 bg-slate-100 text-slate-700 rounded-xl shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide truncate">Fichas de Currículos</p>
-                        <h4 className="text-lg font-black text-slate-900 mt-0.5 truncate">{stats.totalCandidates} recebidos</h4>
-                        <p className="text-[9px] text-orange-655 font-bold font-mono">Banco de talentos</p>
+                        <p className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">Rebanho Nelore</p>
+                        <h4 className="text-xl font-black text-slate-900 mt-0.5">{computedCattleHead.toLocaleString('pt-BR')}</h4>
+                        <p className="text-[9px] text-amber-600 font-bold">cabeças</p>
                       </div>
                     </div>
 
                   </div>
                 </div>
+
+                {/* Candidatos recentes */}
+                {stats.recentCandidates && stats.recentCandidates.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm">Últimas Candidaturas Recebidas</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">5 mais recentes cadastradas no banco de talentos</p>
+                      </div>
+                      <button
+                        onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['candidates']); setActiveSubTab('candidates'); setViewingCandidateUid(null); }}
+                        className="text-[10px] text-emerald-700 font-extrabold hover:underline cursor-pointer"
+                      >
+                        Ver todos →
+                      </button>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {stats.recentCandidates.map((c) => (
+                        <div key={c.id} className="px-6 py-3 flex items-center justify-between hover:bg-slate-50/50 transition-colors">
+                          <div className="min-w-0">
+                            <p className="text-xs font-extrabold text-slate-900 truncate">{c.name}</p>
+                            <p className="text-[10px] text-slate-500 font-mono truncate">{c.vacancy_title || 'Espontâneo'}</p>
+                          </div>
+                          <div className="flex items-center space-x-3 shrink-0">
+                            <span className="text-[10px] text-slate-400 font-mono hidden sm:block">{c.applied_at ? String(c.applied_at).slice(0,10) : ''}</span>
+                            <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                              c.status === 'Novo' ? 'bg-blue-50 text-blue-800' :
+                              c.status === 'Em Análise' ? 'bg-amber-50 text-amber-800' :
+                              c.status === 'Aprovado' ? 'bg-emerald-50 text-emerald-800' :
+                              'bg-slate-100 text-slate-500'
+                            }`}>
+                              {c.status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Real-time Production Charts block */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -1877,6 +2237,15 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                     )}
                   </div>
                 </div>
+
+                {/* PAINEL DE ATUALIZAÇÃO DE DADOS REAIS DE PRODUÇÃO */}
+                {currentUserRole === 'admin' && stats?.productionStats && stats.productionStats.length > 0 && (
+                  <ProductionEditor
+                    productionStats={stats.productionStats}
+                    onSaved={fetchInitialData}
+                    showSuccess={showSuccess}
+                  />
+                )}
 
                 {/* INTERACTIVE SHIGUENO CIRCULAR PLANNER */}
                 <div id="agroecological-planner" className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_12px_40px_rgba(4,120,87,0.15)] relative overflow-hidden select-none animate-fade-in">
@@ -2552,7 +2921,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                 
                 {/* Deletion of Card Modal overlay */}
                 {activityToDelete && (
-                  <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+                  <Portal><div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl border border-slate-200/50 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-sm w-full animate-scale-in">
                       <div className="flex items-center space-x-3 text-rose-600 mb-4">
                         <AlertCircle className="w-6 h-6" />
@@ -2582,12 +2951,12 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </div></Portal>
                 )}
 
                 {/* Deletion of Column Modal overlay */}
                 {columnToDelete && (
-                  <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+                  <Portal><div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
                     <div className="bg-white rounded-3xl border border-slate-200/50 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-sm w-full animate-scale-in">
                       <div className="flex items-center space-x-3 text-rose-600 mb-4">
                         <AlertCircle className="w-6 h-6" />
@@ -2616,7 +2985,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </div></Portal>
                 )}
 
               </div>
@@ -2676,7 +3045,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
               </div>
             )}
 
-            {/* SUBTAB 3: CADASTRO DE VAGAS */}
+            {/* ── VAGAS ─────────────────────────────────────────────────────── */}
             {activeSubTab === 'vacancies' && (
               <div className="space-y-6">
                 
@@ -2814,72 +3183,107 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                   </div>
                 )}
 
-                {/* Grid List */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {vacancies.map((v) => (
-                    <div 
-                      key={v.id} 
-                      className="bg-white rounded-2xl p-6 space-y-4 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.05)] border border-slate-100/40 hover:border-emerald-200/50 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
-                    >
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start gap-4">
-                          <div>
-                            <span className="text-[10px] font-bold bg-[#fafbfa] text-emerald-850 border border-emerald-100 px-2 py-0.5 rounded font-mono uppercase">
-                              {v.department}
-                            </span>
-                            <h3 className="text-base font-extrabold text-slate-950 mt-1 pl-1 border-l-2 border-amber-500">{v.title}</h3>
+                {/* Grid de Vagas — cards responsivos aprimorados */}
+                {vacancies.length === 0 ? (
+                  <div className="py-20 text-center bg-white border border-dashed border-slate-200 rounded-2xl">
+                    <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-slate-500">Nenhuma vaga cadastrada ainda.</p>
+                    <p className="text-xs text-slate-400 mt-1">Clique em "Cadastrar Nova Vaga" para começar.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                    {vacancies.map((v) => {
+                      const candidateCount = candidates.filter(c => String(c.vacancy_id) === String(v.id)).length;
+                      return (
+                        <div
+                          key={v.id}
+                          className="bg-white rounded-2xl border border-slate-100 hover:border-emerald-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(4,120,87,0.08)] transition-all duration-300 flex flex-col overflow-hidden"
+                        >
+                          {/* Card top accent bar */}
+                          <div className={`h-1 w-full ${v.status === 'Ativa' ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-slate-200'}`} />
+
+                          <div className="p-5 flex flex-col flex-1 space-y-3">
+                            {/* Header */}
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <span className="inline-block text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-md font-mono mb-1.5">
+                                  {v.department}
+                                </span>
+                                <h3 className="text-sm font-extrabold text-slate-900 leading-snug truncate">{v.title}</h3>
+                              </div>
+                              <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                                v.status === 'Ativa'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : 'bg-slate-100 text-slate-500 border border-slate-200'
+                              }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${v.status === 'Ativa' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                                {v.status}
+                              </span>
+                            </div>
+
+                            {/* Info */}
+                            <div className="space-y-1.5 text-xs text-slate-600">
+                              <div className="flex items-center space-x-1.5">
+                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="font-semibold">{v.location}</span>
+                              </div>
+                              <p className="text-slate-500 line-clamp-2 leading-relaxed">{v.description}</p>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="flex items-center space-x-3 pt-1">
+                              <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
+                                <Users className="w-3 h-3" />
+                                <span>{candidateCount} candidato{candidateCount !== 1 ? 's' : ''}</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">#{v.id}</span>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="pt-3 mt-auto border-t border-slate-100 flex items-center justify-between gap-2">
+                              <button
+                                onClick={() => { setSelectedVacancyForPoster(v); setIsPosterModalOpen(true); }}
+                                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-[10px] rounded-lg hover:bg-emerald-800 hover:text-white transition-all"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>Cartaz A4</span>
+                              </button>
+                              <div className="flex items-center space-x-1.5">
+                                <button
+                                  onClick={() => openEditVacancy(v)}
+                                  className="p-1.5 px-3 border border-slate-200 text-slate-600 font-bold text-[10px] rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition-colors"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  onClick={() => deleteVacancy(v.id)}
+                                  className="p-1.5 px-2.5 border border-rose-100 text-rose-600 font-bold text-[10px] rounded-lg hover:bg-rose-600 hover:text-white transition-all"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            v.status === 'Ativa' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-50 text-red-750'
-                          }`}>
-                            {v.status}
-                          </span>
                         </div>
-
-                        <div className="space-y-1.5 text-xs text-slate-600 pl-1">
-                          <p>📍 <strong>Local:</strong> {v.location}</p>
-                          <p className="line-clamp-2 mt-1">📝 <strong>Atividades:</strong> {v.description}</p>
-                          <p className="line-clamp-1 italic mt-1">⭐ <strong>Requisitos:</strong> {v.requirements}</p>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 mt-4 border-t border-slate-100 flex justify-between items-center">
-                        <span className="text-[10px] text-slate-400 font-mono">ID SQLite: #0{v.id}</span>
-                        <div className="flex items-center space-x-1.5">
-                          <button
-                            onClick={() => {
-                              setSelectedVacancyForPoster(v);
-                              setIsPosterModalOpen(true);
-                            }}
-                            className="p-1.5 px-3 bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-xs rounded hover:bg-emerald-800 hover:text-white transition-all flex items-center space-x-1"
-                          >
-                            <FileText className="w-3.5 h-3.5" />
-                            <span>Gerar Cartaz A4</span>
-                          </button>
-                          <button
-                            onClick={() => openEditVacancy(v)}
-                            className="p-1.5 px-2.5 border border-slate-200 text-slate-600 font-bold text-xs rounded hover:border-emerald-300 hover:bg-emerald-50/20 transition-colors"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => deleteVacancy(v.id)}
-                            className="p-1.5 px-2.5 border border-slate-200 text-red-650 font-bold text-xs rounded hover:bg-red-650 hover:text-white transition-all"
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
               </div>
             )}
 
-            {/* SUBTAB 4: CADASTRO DE CURRÍCULOS */}
-            {activeSubTab === 'candidates' && (() => {
+            {/* ── CANDIDATOS ────────────────────────────────────────────────── */}
+            {activeSubTab === 'candidates' && (
+              <CandidatesTab
+                token={token}
+                vacancies={vacancies}
+                userName={currentUserName}
+                canEdit={canView('can_edit_candidates') || currentUserRole === 'admin'}
+                onOpenPage={(uid) => setViewingCandidateUid(uid)}
+              />
+            )}
+            {false && (() => {
               const totalCandidates = candidates.length;
               const candidatesWithAi = candidates.filter(c => getAiData(c) !== null).length;
               const pendingCandidates = candidates.filter(c => c.status === 'Novo').length;
@@ -3384,7 +3788,20 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
             </div>
           )})()}
 
-            {/* SUBTAB 5: RASTREAMENTO & FROTAS */}
+            {/* ── EQUIPE & HIERARQUIA ───────────────────────────────────────── */}
+            {activeSubTab === 'equipe' && (
+              <EmployeesTab
+                token={token}
+                canEdit={canView('can_edit_candidates') || currentUserRole === 'admin'}
+              />
+            )}
+
+            {/* ── FINANCEIRO ───────────────────────────────────────────────── */}
+            {activeSubTab === 'financeiro' && (
+              <FinanceiroTab token={token} />
+            )}
+
+            {/* ── RASTREAMENTO & FROTAS ─────────────────────────────────────── */}
             {activeSubTab === 'tracking' && (
               <TrackingPanel
                 routes={routes}
@@ -3730,6 +4147,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
             
           </div>
         )}
+          </>)}
         </main>
       </div>
 

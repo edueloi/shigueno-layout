@@ -10,6 +10,7 @@ import LoginView from './components/LoginView';
 import AdminPanel from './components/AdminPanel';
 import BlogView from './components/BlogView';
 import ChatbotWidget from './components/ChatbotWidget';
+import CandidatePage from './components/CandidatePage';
 import { SiteSettings } from './types';
 
 // ── URL ↔ view mapping ────────────────────────────────────────────────────────
@@ -29,13 +30,19 @@ const VIEW_TO_PATH: Record<string, string> = Object.fromEntries(
 
 function pathToView(path: string): string {
   const clean = path.length > 1 ? path.replace(/\/$/, '') : path;
-  // /admin with any hash → admin view
   if (clean === '/admin' || clean.startsWith('/admin#')) return 'admin';
+  if (clean.startsWith('/candidatos/')) return 'candidato';
   return ROUTE_MAP[clean] || 'home';
+}
+
+function getCandidateUid(): string {
+  const match = window.location.pathname.match(/^\/candidatos\/([^/]+)/);
+  return match ? match[1] : '';
 }
 
 export default function App() {
   const [currentView, setCurrentView] = React.useState<string>(() => pathToView(window.location.pathname));
+  const [candidateUid, setCandidateUid] = React.useState<string>(() => getCandidateUid());
 
   // Inicializa sessão de forma síncrona para evitar flash da tela de login no refresh
   const [user, setUser] = React.useState<any>(() => {
@@ -64,6 +71,7 @@ export default function App() {
   React.useEffect(() => {
     const onPop = () => {
       setCurrentView(pathToView(window.location.pathname));
+      setCandidateUid(getCandidateUid());
       window.scrollTo({ top: 0, behavior: 'instant' as any });
     };
     window.addEventListener('popstate', onPop);
@@ -73,14 +81,15 @@ export default function App() {
   // Update document title per route
   React.useEffect(() => {
     const titles: Record<string, string> = {
-      home:     'Grupo Shigueno — Qualidade de Vida desde 1932',
-      sobre:    'Sobre Nós | Grupo Shigueno',
-      produtos: 'Nossa Produção | Grupo Shigueno',
-      blog:     'Blog | Grupo Shigueno',
-      vagas:    'Trabalhe Conosco | Grupo Shigueno',
-      contato:  'Contatos | Grupo Shigueno',
-      login:    'Portal do Gestor | Grupo Shigueno',
-      admin:    'Painel Administrativo | Grupo Shigueno',
+      home:      'Grupo Shigueno — Qualidade de Vida desde 1932',
+      sobre:     'Sobre Nós | Grupo Shigueno',
+      produtos:  'Nossa Produção | Grupo Shigueno',
+      blog:      'Blog | Grupo Shigueno',
+      vagas:     'Trabalhe Conosco | Grupo Shigueno',
+      contato:   'Contatos | Grupo Shigueno',
+      login:     'Portal do Gestor | Grupo Shigueno',
+      admin:     'Painel Administrativo | Grupo Shigueno',
+      candidato: 'Ficha do Candidato | Grupo Shigueno',
     };
     document.title = titles[currentView] || 'Grupo Shigueno';
   }, [currentView]);
@@ -119,8 +128,16 @@ export default function App() {
 
   const navigateTo = (viewKey: string, tab?: any) => {
     if (viewKey === 'produtos' && tab) setActiveProductTab(tab);
+    // Suporte à navegação para ficha de candidato: navigateTo('candidato', uid)
+    if (viewKey === 'candidato' && tab) {
+      const path = `/candidatos/${tab}`;
+      window.history.pushState({ view: 'candidato', uid: tab }, '', path);
+      setCandidateUid(tab);
+      setCurrentView('candidato');
+      window.scrollTo({ top: 0, behavior: 'instant' as any });
+      return;
+    }
     const path = VIEW_TO_PATH[viewKey] || '/';
-    // pushState com URL completa sem hash — limpa qualquer #hash do admin
     const fullPath = window.location.origin + path;
     window.history.pushState({ view: viewKey }, '', fullPath);
     setCurrentView(viewKey);
@@ -176,7 +193,7 @@ export default function App() {
       )}
 
       {/* Central Header Navigation - Hidden in Admin Panel and Login */}
-      {currentView !== 'admin' && currentView !== 'login' && (
+      {currentView !== 'admin' && currentView !== 'login' && currentView !== 'candidato' && (
         <Header 
           currentView={currentView} 
           onNavigate={handleNavigation} 
@@ -215,15 +232,31 @@ export default function App() {
             <LoginView onLoginSuccess={handleLoginSuccess} onNavigate={handleNavigation} />
           )
         )}
+        {currentView === 'candidato' && candidateUid && (
+          isLoggedIn ? (
+            <CandidatePage
+              uid={candidateUid}
+              token={localStorage.getItem('shigueno_token') || ''}
+              userName={user?.name || 'Recrutador'}
+              onBack={() => {
+                window.history.pushState({}, '', '/admin#candidatos');
+                setCurrentView('admin');
+                window.scrollTo({ top: 0, behavior: 'instant' as any });
+              }}
+            />
+          ) : (
+            <LoginView onLoginSuccess={handleLoginSuccess} onNavigate={handleNavigation} />
+          )
+        )}
       </main>
 
       {/* Central Footer copyright and coordinates */}
-      {currentView !== 'admin' && currentView !== 'login' && (
+      {currentView !== 'admin' && currentView !== 'login' && currentView !== 'candidato' && (
         <Footer onNavigate={handleNavigation} siteSettings={siteSettings} />
       )}
 
       {/* Floating ShiguenoBot Chatbot Widget & WhatsApp Autoatendimento — oculto no painel admin */}
-      {currentView !== 'admin' && currentView !== 'login' && (
+      {currentView !== 'admin' && currentView !== 'login' && currentView !== 'candidato' && (
         <ChatbotWidget siteSettings={siteSettings} />
       )}
     </div>
