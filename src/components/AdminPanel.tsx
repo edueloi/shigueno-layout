@@ -5,7 +5,8 @@ import {
   FileText, Calendar, Filter, Leaf, Download, Menu, Home, LogOut,
   Truck, Navigation, Compass, Map, Activity, Play, CheckCircle, Clock, Settings,
   LayoutGrid, Search, Sparkles, PlusCircle, Award, GripVertical, ChevronDown,
-  Building2, UserCog, Layers, BookOpen, DollarSign
+  Building2, UserCog, Layers, BookOpen, DollarSign, Eye, EyeOff, Shield,
+  ShieldCheck, ShieldOff, Key, Mail, User, Lock, UserPlus, ChevronUp
 } from 'lucide-react';
 import { useUserPreferences } from '../hooks/useUserPreferences';
 import { Portal } from '../hooks/usePortal';
@@ -104,14 +105,20 @@ function hashToTab(): SubTab {
 
 // ── Permission toggles component ─────────────────────────────────────────────
 const MENU_PERMS = [
-  { key: 'can_view_reports',    label: 'Ver Relatórios',        edit: null },
-  { key: 'can_view_activities', label: 'Ver Atividades',        edit: 'can_edit_activities' },
-  { key: 'can_view_tracking',   label: 'Ver Rastreamento',      edit: 'can_edit_tracking' },
-  { key: 'can_view_blog',       label: 'Ver Blog',              edit: 'can_edit_blog' },
-  { key: 'can_view_vacancies',  label: 'Ver Vagas',             edit: 'can_edit_vacancies' },
-  { key: 'can_view_candidates', label: 'Ver Candidatos',        edit: 'can_edit_candidates' },
-  { key: 'can_view_settings',   label: 'Ver Dados do Site',     edit: 'can_edit_settings' },
+  { key: 'can_view_reports',    label: 'Dashboard',       icon: '📊', edit: null },
+  { key: 'can_view_activities', label: 'Atividades',      icon: '📋', edit: 'can_edit_activities' },
+  { key: 'can_view_tracking',   label: 'Rastreamento',    icon: '🗺️', edit: 'can_edit_tracking' },
+  { key: 'can_view_blog',       label: 'Blog',            icon: '✍️', edit: 'can_edit_blog' },
+  { key: 'can_view_vacancies',  label: 'Vagas',           icon: '💼', edit: 'can_edit_vacancies' },
+  { key: 'can_view_candidates', label: 'Candidatos',      icon: '👤', edit: 'can_edit_candidates' },
+  { key: 'can_view_settings',   label: 'Dados do Site',   icon: '⚙️', edit: 'can_edit_settings' },
 ] as const;
+
+const ROLE_CONFIG: Record<string, { label: string; color: string; bg: string; border: string; icon: React.ReactNode }> = {
+  admin:    { label: 'Administrador', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200', icon: <ShieldCheck className="w-3.5 h-3.5" /> },
+  gestor:   { label: 'Gestor',        color: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200', icon: <Shield className="w-3.5 h-3.5" /> },
+  operador: { label: 'Operador',      color: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-200', icon: <ShieldOff className="w-3.5 h-3.5" /> },
+};
 
 function PermissionEditor({ userId, initialPerms, saving, onSave }: {
   userId: number;
@@ -121,44 +128,69 @@ function PermissionEditor({ userId, initialPerms, saving, onSave }: {
 }) {
   const [perms, setPerms] = React.useState<Record<string, number>>({ ...initialPerms });
   const toggle = (key: string) => setPerms(p => ({ ...p, [key]: p[key] ? 0 : 1 }));
+
+  const allOn = MENU_PERMS.every(({ key }) => perms[key]);
+  const toggleAll = () => {
+    const next = allOn ? 0 : 1;
+    const updates: Record<string, number> = {};
+    MENU_PERMS.forEach(({ key, edit }) => {
+      updates[key] = next;
+      if (edit) updates[edit] = next;
+    });
+    setPerms(p => ({ ...p, ...updates }));
+  };
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-        {MENU_PERMS.map(({ key, label, edit }) => (
-          <div key={key} className={`rounded-xl border p-3 space-y-2 transition-all ${perms[key] ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-slate-50/40'}`}>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-slate-800">{label}</span>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Módulos de Acesso</span>
+        <button
+          type="button"
+          onClick={toggleAll}
+          className={`text-[10px] font-bold px-3 py-1 rounded-lg border transition-colors cursor-pointer ${allOn ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100' : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'}`}
+        >
+          {allOn ? 'Revogar Todos' : 'Liberar Todos'}
+        </button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+        {MENU_PERMS.map(({ key, label, icon, edit }) => (
+          <div key={key} className={`rounded-2xl border p-3 space-y-2 transition-all ${perms[key] ? 'border-emerald-200 bg-emerald-50/50 shadow-sm' : 'border-slate-150 bg-white'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-sm leading-none">{icon}</span>
+                <span className={`text-[11px] font-bold truncate ${perms[key] ? 'text-emerald-900' : 'text-slate-500'}`}>{label}</span>
+              </div>
               <button
                 type="button"
                 onClick={() => {
-                  toggle(key);
-                  if (!perms[key] === false && edit) setPerms(p => ({ ...p, [edit]: 0 }));
+                  const nowOn = !!perms[key];
+                  setPerms(p => ({ ...p, [key]: nowOn ? 0 : 1, ...(nowOn && edit ? { [edit]: 0 } : {}) }));
                 }}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${perms[key] ? 'bg-emerald-700' : 'bg-slate-300'}`}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${perms[key] ? 'bg-emerald-600' : 'bg-slate-200'}`}
               >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${perms[key] ? 'translate-x-4' : 'translate-x-0'}`} />
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-150 ${perms[key] ? 'translate-x-4' : 'translate-x-0'}`} />
               </button>
             </div>
             {edit && perms[key] === 1 && (
-              <div className="flex items-center justify-between pt-0.5 border-t border-emerald-200/60">
-                <span className="text-[10px] text-slate-500 font-mono">Pode editar</span>
+              <div className="flex items-center justify-between pt-2 border-t border-emerald-200/70">
+                <span className="text-[10px] text-emerald-700 font-semibold">Pode editar</span>
                 <button
                   type="button"
                   onClick={() => toggle(edit)}
-                  className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${perms[edit] ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                  className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${perms[edit] ? 'bg-indigo-500' : 'bg-slate-200'}`}
                 >
-                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${perms[edit] ? 'translate-x-4' : 'translate-x-0'}`} />
+                  <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-150 ${perms[edit] ? 'translate-x-4' : 'translate-x-0'}`} />
                 </button>
               </div>
             )}
           </div>
         ))}
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end pt-1">
         <button
           onClick={() => onSave(perms)}
           disabled={saving}
-          className="bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-extrabold text-xs px-5 py-2 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
+          className="bg-emerald-800 hover:bg-emerald-900 disabled:opacity-50 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
         >
           {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
           <span>{saving ? 'Salvando...' : 'Salvar Permissões'}</span>
@@ -177,12 +209,16 @@ function AddUserForm({ authFetch, onCreated, showSuccess }: {
   const [name, setName] = React.useState('');
   const [username, setUsername] = React.useState('');
   const [password, setPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
   const [role, setRole] = React.useState('operador');
   const [error, setError] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return; }
     setError('');
+    setLoading(true);
     try {
       const res = await authFetch('/api/users', {
         method: 'POST',
@@ -191,58 +227,171 @@ function AddUserForm({ authFetch, onCreated, showSuccess }: {
       });
       const data = await res.json();
       if (data.success) {
-        showSuccess(`Usuário "${name}" criado. Configure as permissões acima.`);
+        showSuccess(`Usuário "${name}" criado com sucesso.`);
         setOpen(false);
-        setName(''); setUsername(''); setPassword(''); setRole('operador');
+        setName(''); setUsername(''); setPassword(''); setRole('operador'); setShowPassword(false);
         onCreated();
       } else {
         setError(data.error || 'Erro ao criar usuário.');
       }
     } catch (err: any) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const roleConf = ROLE_CONFIG[role] || ROLE_CONFIG['operador'];
+  const initials = name.trim().split(' ').filter(Boolean).map(w => w[0].toUpperCase()).slice(0, 2).join('') || '?';
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-colors flex items-center space-x-1.5 cursor-pointer border border-slate-200"
+        className="w-full border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-slate-500 hover:text-emerald-700 font-bold text-xs py-4 rounded-2xl transition-all flex items-center justify-center space-x-2 cursor-pointer"
       >
-        <Plus className="w-4 h-4" />
-        <span>Adicionar Novo Usuário</span>
+        <UserPlus className="w-4 h-4" />
+        <span>Adicionar Novo Usuário ao Painel</span>
       </button>
     );
   }
 
   return (
-    <div className="bg-[#fafbfa] border border-slate-200 rounded-2xl p-5 space-y-4 animate-slide-in">
-      <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight">Novo Usuário do Painel</h3>
-      {error && <p className="text-xs text-rose-600 font-bold bg-rose-50 px-3 py-2 rounded-xl border border-rose-200">{error}</p>}
-      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Nome Completo *</label>
-          <input required value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Gisela Shigueno" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+    <div className="bg-white border border-emerald-200 rounded-2xl overflow-hidden shadow-sm animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 bg-gradient-to-r from-emerald-50 to-white border-b border-emerald-100">
+        <div className="flex items-center space-x-3">
+          <div className="w-9 h-9 rounded-2xl bg-emerald-800 flex items-center justify-center">
+            <UserPlus className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-sm font-black text-slate-900">Novo Usuário</p>
+            <p className="text-[10px] text-slate-500">Preencha os dados e defina o perfil de acesso</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Login (username) *</label>
-          <input required value={username} onChange={e => setUsername(e.target.value)} placeholder="Ex: gisela.shigueno" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+        <button onClick={() => setOpen(false)} className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <form onSubmit={submit} className="p-5 space-y-5">
+        {error && (
+          <div className="flex items-center space-x-2 bg-rose-50 border border-rose-200 px-4 py-2.5 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+            <p className="text-xs text-rose-600 font-bold">{error}</p>
+          </div>
+        )}
+
+        {/* Preview do avatar */}
+        <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-black text-white shadow-sm ${role === 'admin' ? 'bg-amber-500' : role === 'gestor' ? 'bg-indigo-600' : 'bg-emerald-700'}`}>
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-extrabold text-slate-900 truncate">{name || 'Nome do usuário'}</p>
+            <p className="text-[10px] text-slate-500 font-mono truncate">@{username || 'login'}</p>
+            <span className={`inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${roleConf.color} ${roleConf.bg} ${roleConf.border}`}>
+              {roleConf.icon}
+              {roleConf.label}
+            </span>
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Senha Inicial *</label>
-          <input required type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-semibold focus:outline-emerald-850" />
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Nome */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Nome Completo *</label>
+            <div className="relative">
+              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                required
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Ex: Gisela Shigueno"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Username */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Login (Username) *</label>
+            <div className="relative">
+              <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                required
+                value={username}
+                onChange={e => setUsername(e.target.value.toLowerCase().replace(/\s/g, '.'))}
+                placeholder="Ex: gisela.shigueno"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-mono font-semibold text-slate-800 outline-none transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Senha */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Senha Inicial *</label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                required
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Mínimo 6 caracteres"
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 pl-9 pr-10 py-2.5 rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+            {password && password.length < 6 && (
+              <p className="text-[10px] text-rose-500 font-semibold mt-1">Mínimo 6 caracteres</p>
+            )}
+          </div>
+
+          {/* Perfil */}
+          <div>
+            <label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1.5">Perfil de Acesso</label>
+            <div className="relative">
+              <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={role}
+                onChange={e => setRole(e.target.value)}
+                className="w-full bg-slate-50 focus:bg-white border border-slate-200 focus:border-emerald-500 pl-9 pr-3.5 py-2.5 rounded-xl text-xs font-bold text-slate-800 outline-none transition-all appearance-none cursor-pointer"
+              >
+                <option value="operador">Operador — permissões manuais</option>
+                <option value="gestor">Gestor — acesso expandido</option>
+                <option value="admin">Administrador — acesso total</option>
+              </select>
+            </div>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {role === 'admin' ? 'Acesso irrestrito a todas as seções e dados.' : role === 'gestor' ? 'Acesso às principais seções com permissões amplas.' : 'Configure manualmente cada permissão após criar.'}
+            </p>
+          </div>
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Perfil</label>
-          <select value={role} onChange={e => setRole(e.target.value)} className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850">
-            <option value="operador">Operador (permissões manuais)</option>
-            <option value="gestor">Gestor (acesso expandido)</option>
-            <option value="admin">Administrador (acesso total)</option>
-          </select>
-        </div>
-        <div className="md:col-span-2 flex justify-end space-x-2 pt-1">
-          <button type="button" onClick={() => setOpen(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs px-4 py-2 rounded-xl cursor-pointer">Cancelar</button>
-          <button type="submit" className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-5 py-2 rounded-xl cursor-pointer">Criar Usuário</button>
+
+        <div className="flex justify-end space-x-2 pt-2 border-t border-slate-100">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); setError(''); }}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-emerald-800 hover:bg-emerald-900 disabled:opacity-60 text-white font-extrabold text-xs px-5 py-2.5 rounded-xl cursor-pointer transition-colors flex items-center space-x-1.5 shadow-sm"
+          >
+            {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+            <span>{loading ? 'Criando...' : 'Criar Usuário'}</span>
+          </button>
         </div>
       </form>
     </div>
@@ -699,9 +848,10 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   const [draggedCardId, setDraggedCardId] = React.useState<number | null>(null);
   const [draggedOverColumn, setDraggedOverColumn] = React.useState<string | null>(null);
 
-  // Modern Confirmation Modals for Activities & Columns
+  // Modern Confirmation Modals for Activities, Columns & Vacancies
   const [activityToDelete, setActivityToDelete] = React.useState<any | null>(null);
   const [columnToDelete, setColumnToDelete] = React.useState<string | null>(null);
+  const [vacancyToDelete, setVacancyToDelete] = React.useState<Vacancy | null>(null);
 
   React.useEffect(() => {
     fetchInitialData();
@@ -1299,8 +1449,10 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
     }
   };
 
-  const deleteVacancy = async (id: number) => {
-    if (!confirm('Deseja realmente remover esta vaga do sistema? Candidaturas vinculadas terão esta vaga desvinculada.')) return;
+  const confirmDeleteVacancy = async () => {
+    if (!vacancyToDelete) return;
+    const id = vacancyToDelete.id;
+    setVacancyToDelete(null);
     try {
       const res = await authFetch(`/api/vacancies/${id}`, { method: 'DELETE' });
       const data = await res.json();
@@ -1311,6 +1463,10 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const deleteVacancy = (vac: Vacancy) => {
+    setVacancyToDelete(vac);
   };
 
   const openEditVacancy = (vac: Vacancy) => {
@@ -2991,18 +3147,69 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
               </div>
             )}
 
+            {/* Modal de confirmação de exclusão de vaga */}
+            {vacancyToDelete && (
+              <Portal>
+                <div className="fixed inset-0 bg-[#0f172a]/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 animate-fade-in">
+                  <div className="bg-white rounded-3xl border border-slate-200/50 p-6 shadow-[0_20px_50px_rgba(0,0,0,0.15)] max-w-sm w-full animate-scale-in">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-100 flex items-center justify-center flex-shrink-0">
+                        <Trash2 className="w-5 h-5 text-rose-600" />
+                      </div>
+                      <h3 className="font-sans font-black text-slate-900 text-sm uppercase tracking-tight">Excluir Vaga</h3>
+                    </div>
+                    <p className="text-xs text-slate-600 mb-2 leading-relaxed">
+                      Você está prestes a excluir permanentemente a vaga:
+                    </p>
+                    <strong className="block text-slate-850 mb-2 font-bold text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                      {vacancyToDelete.title}
+                    </strong>
+                    <p className="text-[10px] text-slate-500 mb-1">Departamento: <span className="font-semibold">{vacancyToDelete.department}</span></p>
+                    <p className="text-[10px] text-slate-500 mb-4">Candidaturas vinculadas terão esta vaga desvinculada.</p>
+                    <span className="block text-[10px] text-rose-500 mb-5 font-mono font-medium uppercase tracking-wider">▲ Esta ação é definitiva e não poderá ser desfeita.</span>
+                    <div className="flex justify-end space-x-2">
+                      <button
+                        onClick={() => setVacancyToDelete(null)}
+                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-2xs px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={confirmDeleteVacancy}
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-2xs px-4 py-2.5 rounded-xl transition-colors shadow-sm cursor-pointer"
+                      >
+                        Sim, Excluir Vaga
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </Portal>
+            )}
+
             {/* SUBTAB: USUÁRIOS & PERMISSÕES */}
             {activeSubTab === 'permissions' && (
               <div className="space-y-6 animate-fade-in">
-                <div className="border-b border-slate-150 pb-4">
-                  <h2 className="text-lg font-bold text-slate-900">Usuários & Controle de Acesso</h2>
-                  <p className="text-xs text-slate-500">Gerencie quem pode acessar cada seção do painel. Defina visibilidade e permissões de edição por usuário.</p>
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-150 pb-5">
+                  <div>
+                    <h2 className="text-lg font-black text-slate-900">Usuários & Controle de Acesso</h2>
+                    <p className="text-xs text-slate-500 mt-0.5">Gerencie quem pode acessar cada seção do painel. Defina visibilidade e permissões por usuário.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="bg-slate-100 rounded-xl px-3 py-1.5 flex items-center gap-2">
+                      <Users className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-xs font-black text-slate-700">{permUsers.length} {permUsers.length === 1 ? 'usuário' : 'usuários'}</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Users list with permission toggles */}
+                {/* Users list */}
                 <div className="space-y-4">
                   {permUsers.length === 0 ? (
-                    <div className="py-16 text-center text-slate-400 italic text-sm bg-white border border-dashed border-slate-200 rounded-2xl">Nenhum usuário cadastrado.</div>
+                    <div className="py-20 text-center text-slate-400 italic text-sm bg-white border border-dashed border-slate-200 rounded-2xl">
+                      <Users className="w-8 h-8 mx-auto mb-3 text-slate-300" />
+                      Nenhum usuário cadastrado ainda.
+                    </div>
                   ) : (
                     permUsers.map((u) => {
                       const p = u.permissions || {
@@ -3012,27 +3219,63 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                         can_edit_candidates: 0, can_edit_blog: 0, can_edit_tracking: 0, can_edit_settings: 0
                       };
                       const isAdmin = u.role === 'admin';
+                      const roleConf = ROLE_CONFIG[u.role] || ROLE_CONFIG['operador'];
+                      const initials = u.name.trim().split(' ').filter(Boolean).map((w: string) => w[0].toUpperCase()).slice(0, 2).join('');
+                      const activePerms = MENU_PERMS.filter(({ key }) => p[key]).length;
                       return (
-                        <div key={u.id} className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-xs space-y-4">
+                        <div key={u.id} className={`bg-white border rounded-2xl overflow-hidden shadow-xs transition-all ${isAdmin ? 'border-amber-200' : 'border-slate-200/80'}`}>
                           {/* User header */}
-                          <div className="flex items-center justify-between">
+                          <div className={`flex items-center justify-between px-5 py-4 ${isAdmin ? 'bg-gradient-to-r from-amber-50 to-white' : 'bg-gradient-to-r from-slate-50 to-white'}`}>
                             <div className="flex items-center space-x-3">
-                              <div className="w-9 h-9 rounded-full bg-emerald-800 flex items-center justify-center text-white text-xs font-black">{u.name.charAt(0).toUpperCase()}</div>
+                              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-white text-sm font-black shadow-sm flex-shrink-0 ${isAdmin ? 'bg-amber-500' : u.role === 'gestor' ? 'bg-indigo-600' : 'bg-emerald-700'}`}>
+                                {initials}
+                              </div>
                               <div>
-                                <p className="text-sm font-extrabold text-slate-900">{u.name}</p>
-                                <p className="text-[10px] text-slate-500 font-mono">{u.username} · <span className={`font-bold uppercase ${isAdmin ? 'text-amber-600' : 'text-indigo-600'}`}>{u.role}</span></p>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-extrabold text-slate-900">{u.name}</p>
+                                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${roleConf.color} ${roleConf.bg} ${roleConf.border}`}>
+                                    {roleConf.icon}
+                                    {roleConf.label}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">@{u.username}</p>
                               </div>
                             </div>
-                            {isAdmin && <span className="bg-amber-50 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full border border-amber-200 uppercase tracking-wide">Acesso Total</span>}
+                            <div className="flex items-center gap-3">
+                              {!isAdmin && (
+                                <div className="hidden sm:flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5">
+                                  <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                                  <span className="text-[10px] font-bold text-slate-600">{activePerms}/{MENU_PERMS.length} módulos</span>
+                                </div>
+                              )}
+                              {isAdmin && (
+                                <span className="flex items-center gap-1.5 bg-amber-50 text-amber-700 text-[10px] font-black px-3 py-1.5 rounded-xl border border-amber-200">
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  Acesso Total
+                                </span>
+                              )}
+                            </div>
                           </div>
 
+                          {/* Permissions */}
                           {!isAdmin && (
-                            <PermissionEditor
-                              userId={u.id}
-                              initialPerms={p}
-                              saving={permSaving === u.id}
-                              onSave={(perms) => savePermissions(u.id, perms)}
-                            />
+                            <div className="px-5 pb-5 pt-4 border-t border-slate-100">
+                              <PermissionEditor
+                                userId={u.id}
+                                initialPerms={p}
+                                saving={permSaving === u.id}
+                                onSave={(perms) => savePermissions(u.id, perms)}
+                              />
+                            </div>
+                          )}
+
+                          {/* Admin full access note */}
+                          {isAdmin && (
+                            <div className="px-5 pb-4 pt-3 border-t border-amber-100 bg-amber-50/30">
+                              <p className="text-[10px] text-amber-700 font-semibold">
+                                Administradores têm acesso irrestrito a todas as seções, módulos e configurações do painel.
+                              </p>
+                            </div>
                           )}
                         </div>
                       );
@@ -3256,7 +3499,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                                   Editar
                                 </button>
                                 <button
-                                  onClick={() => deleteVacancy(v.id)}
+                                  onClick={() => deleteVacancy(v)}
                                   className="p-1.5 px-2.5 border border-rose-100 text-rose-600 font-bold text-[10px] rounded-lg hover:bg-rose-600 hover:text-white transition-all"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
