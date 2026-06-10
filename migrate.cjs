@@ -410,6 +410,19 @@ async function run() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('onboarding_items');
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS quick_notes (
+      id         INT AUTO_INCREMENT PRIMARY KEY,
+      user_id    INT NOT NULL,
+      content    TEXT NOT NULL,
+      color      VARCHAR(20) DEFAULT 'amber',
+      is_done    TINYINT(1) DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_quick_notes_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('quick_notes');
+
   // ── Seed data ────────────────────────────────────────────────────────────────
   console.log('\n  Inserindo dados iniciais...');
 

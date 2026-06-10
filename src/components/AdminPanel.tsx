@@ -23,6 +23,7 @@ import BlogManager from './BlogManager';
 import A4PosterModal from './A4PosterModal';
 import TrackingPanel from './TrackingPanel';
 import ActivityBoard from './ActivityBoard';
+import { StatCard, NotificationBell, buildNotifications, QuickNotes, SkeletonDashboard } from './ui';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -620,7 +621,7 @@ function SidebarNav({ activeSubTab, currentUserRole, canView, onNavigate }: {
 
             {/* Items */}
             {isOpen && (
-              <div className="pl-2 space-y-0.5">
+              <div className="pl-2 space-y-0.5 animate-fade-in">
                 {visibleItems.map(item => {
                   const Icon = item.icon;
                   const active = activeSubTab === item.key;
@@ -628,13 +629,14 @@ function SidebarNav({ activeSubTab, currentUserRole, canView, onNavigate }: {
                     <button
                       key={item.key}
                       onClick={() => onNavigate(item.key)}
-                      className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-bold font-sans transition-all cursor-pointer ${
+                      className={`relative w-full flex items-center space-x-3 px-4 py-2.5 rounded-xl text-xs font-bold font-sans transition-all duration-200 cursor-pointer group ${
                         active
-                          ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                          : 'text-emerald-200 hover:bg-emerald-900/50 hover:text-white'
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-black shadow-lg shadow-amber-500/25'
+                          : 'text-emerald-200 hover:bg-emerald-900/50 hover:text-white hover:translate-x-0.5'
                       }`}
                     >
-                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-slate-950' : 'text-emerald-400'}`} />
+                      {active && <span className="absolute -left-2 top-1/2 -translate-y-1/2 w-1 h-6 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />}
+                      <Icon className={`w-4 h-4 shrink-0 transition-transform duration-200 ${active ? 'text-slate-950 scale-110' : 'text-emerald-400 group-hover:scale-110'}`} />
                       <span>{item.label}</span>
                     </button>
                   );
@@ -651,6 +653,13 @@ function SidebarNav({ activeSubTab, currentUserRole, canView, onNavigate }: {
 export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, user, token = '' }: AdminPanelProps) {
   const [activeSubTab, setActiveSubTab] = React.useState<SubTab>(hashToTab);
   const [mobileSidebarOpen, setMobileSidebarOpen] = React.useState(false);
+
+  // Relógio ao vivo do topbar (atualiza a cada 30s)
+  const [clock, setClock] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   // Sub-view de ficha completa do candidato (renderizada dentro do painel, sidebar preservada)
   const [viewingCandidateUid, setViewingCandidateUid] = React.useState<string | null>(null);
 
@@ -693,6 +702,13 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
     window.history.replaceState(null, '', TAB_TO_HASH[activeSubTab]);
     document.title = TAB_TITLES[activeSubTab];
   }, [activeSubTab]);
+
+  // Navegação programática entre abas (notificações, cards do dashboard)
+  const goToTab = (tab: SubTab) => {
+    window.history.pushState(null, '', TAB_TO_HASH[tab]);
+    setActiveSubTab(tab);
+    setViewingCandidateUid(null);
+  };
 
   // Authenticated fetch helper — uses token from props (no localStorage)
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -1746,8 +1762,15 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   // Distinct cities in MT for dropdown filter
   const uniqueMTCities = Array.from(new Set(suppliers.map(s => s.city)));
 
+  // Alertas derivados para o sino de notificações do topbar
+  const notifItems = buildNotifications({
+    candidates: candidates as any,
+    activities,
+    onGoTo: (tab) => goToTab(tab as SubTab),
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50/70 flex font-sans w-full" id="manager-panel-container">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-emerald-50/40 flex font-sans w-full" id="manager-panel-container">
       {/* MOBILE SIDEBAR BACKDROP */}
       {mobileSidebarOpen && (
         <div 
@@ -1758,23 +1781,28 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
 
       {/* PORTAL SIDEBAR */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-[#0a1e13] text-emerald-100 flex flex-col h-screen border-r border-emerald-900 shadow-2xl transition-transform duration-300 ease-in-out
+        fixed inset-y-0 left-0 z-50 w-64 bg-gradient-to-b from-[#06150c] via-[#0a1e13] to-[#0b2417] text-emerald-100 flex flex-col h-screen border-r border-emerald-900/70 shadow-[8px_0_35px_rgba(2,30,20,0.4)] transition-transform duration-300 ease-in-out
         md:translate-x-0 md:sticky md:top-0 md:h-screen shrink-0
         ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* SIDEBAR HEADER / BRANDING */}
-        <div className="p-6 border-b border-emerald-900/60 bg-[#06150c] flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <img src="/images/shigueno-logo.png" alt="Shigueno" className="w-8 h-8 object-contain" />
+        <div className="relative p-6 border-b border-emerald-900/60 bg-[#06150c]/80 flex items-center justify-between overflow-hidden">
+          {/* Glow ambiente atrás do logo */}
+          <div className="absolute -top-6 -left-6 w-28 h-28 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-center space-x-3 relative">
+            <div className="relative">
+              <div className="absolute inset-0 bg-amber-400/25 rounded-full blur-md" />
+              <img src="/images/shigueno-logo.png" alt="Shigueno" className="relative w-9 h-9 object-contain drop-shadow-[0_0_10px_rgba(251,191,36,0.3)]" />
+            </div>
             <div>
-              <h2 className="font-extrabold text-amber-500 text-xs uppercase tracking-widest leading-none">Grupo Shigueno</h2>
-              <span className="text-[10px] text-emerald-300 font-bold uppercase font-mono mt-1 block">Painel do Gestor</span>
+              <h2 className="font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-500 text-xs uppercase tracking-widest leading-none">Grupo Shigueno</h2>
+              <span className="text-[10px] text-emerald-300 font-bold uppercase font-mono mt-1 block tracking-wider">Painel do Gestor</span>
             </div>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => setMobileSidebarOpen(false)}
-            className="md:hidden p-1.5 rounded-lg text-emerald-300 hover:bg-emerald-900 hover:text-white transition-colors"
+            className="md:hidden p-1.5 rounded-lg text-emerald-300 hover:bg-emerald-900 hover:text-white transition-colors relative"
             title="Fechar menu"
           >
             <X className="w-5 h-5" />
@@ -1782,13 +1810,18 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
         </div>
 
         {/* LOGGED IN USER PROFILE */}
-        <div className="p-4 mx-4 my-2.5 bg-emerald-900/20 rounded-2xl border border-emerald-800/40 flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-full bg-emerald-850 border-2 border-emerald-700/60 flex items-center justify-center text-xs font-black text-amber-400">
-            {currentUserName.charAt(0).toUpperCase()}
+        <div className="p-3.5 mx-4 my-3 bg-gradient-to-br from-emerald-900/40 to-emerald-950/30 rounded-2xl border border-emerald-700/30 flex items-center space-x-3 shadow-inner">
+          <div className="relative shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-900 border border-emerald-600/50 flex items-center justify-center text-sm font-black text-amber-400 shadow-md">
+              {currentUserName.charAt(0).toUpperCase()}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0a1e13] animate-pulse" title="Online" />
           </div>
           <div className="overflow-hidden">
             <p className="text-xs font-extrabold text-white truncate">{currentUserName}</p>
-            <span className="text-[10px] text-emerald-400 font-bold font-mono tracking-wide uppercase">{currentUserRole}</span>
+            <span className="text-[9px] text-emerald-400 font-bold font-mono tracking-widest uppercase inline-flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" />{currentUserRole}
+            </span>
           </div>
         </div>
 
@@ -1828,7 +1861,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
       {/* PORTAL MAIN CONTENT */}
       <div className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
         {/* CUSTOM PORTAL TOPBAR */}
-        <header className="bg-white border-b border-slate-150 h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+        <header className="bg-white/85 backdrop-blur-md border-b border-slate-200/70 h-16 px-4 md:px-8 flex items-center justify-between sticky top-0 z-30 shadow-[0_2px_16px_rgba(2,30,20,0.05)]">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMobileSidebarOpen(true)}
@@ -1867,6 +1900,17 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* Relógio ao vivo */}
+            <div className="hidden lg:flex items-center space-x-2 px-3 py-1.5 rounded-xl bg-[#0a1e13] border border-emerald-900/60 mr-1">
+              <Clock className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[11px] font-black text-emerald-300 font-mono tracking-wider tabular-nums">
+                {clock.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <span className="text-[9px] font-bold text-emerald-600 font-mono uppercase border-l border-emerald-900 pl-2">
+                {clock.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short' })}
+              </span>
+            </div>
+
             {/* Badges de resumo rápido */}
             {stats && (
               <div className="hidden md:flex items-center space-x-2">
@@ -1880,6 +1924,9 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                 </span>
               </div>
             )}
+
+            {/* Central de alertas */}
+            <NotificationBell items={notifItems} />
 
             <button
               onClick={fetchInitialData}
@@ -1931,16 +1978,122 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
           )}
 
           {loading ? (
-            <div className="py-24 text-center text-slate-400 italic text-sm flex flex-col items-center justify-center space-y-3">
-              <RefreshCw className="w-7 h-7 text-emerald-700 animate-spin" />
-              <span>Consultando banco de dados local SQLite de Tatuí...</span>
-            </div>
+            <SkeletonDashboard />
           ) : (
             <div className="animate-fade-in font-sans">
             
               {/* SUBTAB 1: RELATÓRIOS EM TEMPO REAL */}
               {activeSubTab === 'reports' && stats && (
-              <div className="space-y-8">
+              <div className="space-y-6">
+
+                {/* ── HERO DE BOAS-VINDAS ── */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#06150c] via-[#0a2316] to-[#0d3320] border border-emerald-900/50 p-6 sm:p-8 shadow-[0_15px_45px_rgba(2,30,20,0.3)]">
+                  {/* Brilho dourado de fundo */}
+                  <div className="absolute top-0 right-0 w-72 h-72 bg-amber-400/10 rounded-full blur-3xl pointer-events-none animate-gold-shine" />
+                  <div className="absolute -bottom-12 -left-12 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+                  <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.25em] font-mono">
+                        {clock.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                      </p>
+                      <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
+                        {clock.getHours() < 12 ? 'Bom dia' : clock.getHours() < 18 ? 'Boa tarde' : 'Boa noite'},{' '}
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-300">
+                          {currentUserName.split(' ')[0]}
+                        </span> 👋
+                      </h2>
+                      <p className="text-xs text-emerald-300/80 font-semibold max-w-md leading-relaxed">
+                        Aqui está o panorama do Grupo Shigueno em tempo real. Operação centralizada de Tatuí/SP.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <div className="px-4 py-3 rounded-2xl bg-white/5 border border-emerald-700/30 backdrop-blur-sm text-center min-w-[88px]">
+                        <p className="text-xl font-black text-amber-400 leading-none">{stats.totalVacancies}</p>
+                        <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest font-mono mt-1.5">Vagas</p>
+                      </div>
+                      <div className="px-4 py-3 rounded-2xl bg-white/5 border border-emerald-700/30 backdrop-blur-sm text-center min-w-[88px]">
+                        <p className="text-xl font-black text-white leading-none">{stats.totalCandidates}</p>
+                        <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest font-mono mt-1.5">Candidatos</p>
+                      </div>
+                      <div className="px-4 py-3 rounded-2xl bg-white/5 border border-emerald-700/30 backdrop-blur-sm text-center min-w-[88px]">
+                        <p className="text-xl font-black text-emerald-300 leading-none">{summary?.employees?.ativos ?? '—'}</p>
+                        <p className="text-[9px] font-black text-emerald-300 uppercase tracking-widest font-mono mt-1.5">Equipe Ativa</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── CARDS KPI ── */}
+                <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatCard
+                    label="Vagas Ativas"
+                    value={stats.totalVacancies}
+                    icon={Briefcase}
+                    tone="emerald"
+                    hint="Gestão de vagas"
+                    onClick={() => goToTab('vacancies')}
+                  />
+                  <StatCard
+                    label="Candidatos"
+                    value={stats.totalCandidates}
+                    icon={Users}
+                    tone="blue"
+                    hint="Banco de currículos"
+                    onClick={() => goToTab('candidates')}
+                  />
+                  <StatCard
+                    label="Equipe Ativa"
+                    value={summary?.employees?.ativos ?? '—'}
+                    icon={UserCog}
+                    tone="gold"
+                    hint={summary?.employees ? `${summary.employees.total} colaboradores no total` : 'Equipe & hierarquia'}
+                    onClick={() => goToTab('equipe')}
+                  />
+                  <StatCard
+                    label="Atividades"
+                    value={stats.totalActivities ?? activities.length}
+                    icon={LayoutGrid}
+                    tone="purple"
+                    hint={summary?.activities?.overdue ? `${summary.activities.overdue} vencida(s) ⚠️` : 'Quadro em dia'}
+                    onClick={() => goToTab('suppliers')}
+                  />
+                </div>
+
+                {/* ── NOTAS RÁPIDAS + ACESSO RÁPIDO ── */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2">
+                    <QuickNotes userId={currentUserId} token={token} />
+                  </div>
+                  <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_2px_12px_rgba(2,30,20,0.04)] p-5">
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">Acesso Rápido</h3>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {([
+                        { tab: 'equipe' as SubTab,     label: 'Equipe',     icon: UserCog,    tone: 'hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700' },
+                        { tab: 'vacancies' as SubTab,  label: 'Vagas',      icon: Briefcase,  tone: 'hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700' },
+                        { tab: 'candidates' as SubTab, label: 'Seleção',    icon: Users,      tone: 'hover:bg-sky-50 hover:border-sky-200 hover:text-sky-700' },
+                        { tab: 'suppliers' as SubTab,  label: 'Atividades', icon: LayoutGrid, tone: 'hover:bg-violet-50 hover:border-violet-200 hover:text-violet-700' },
+                        { tab: 'financeiro' as SubTab, label: 'Financeiro', icon: DollarSign, tone: 'hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700' },
+                        { tab: 'tracking' as SubTab,   label: 'Frotas',     icon: Truck,      tone: 'hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700' },
+                      ]).map(({ tab, label, icon: QIcon, tone }) => (
+                        <button
+                          key={tab}
+                          onClick={() => goToTab(tab)}
+                          className={`flex flex-col items-center justify-center gap-1.5 py-3.5 rounded-2xl border border-slate-150 bg-slate-50/60 text-slate-500 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md cursor-pointer ${tone}`}
+                        >
+                          <QIcon className="w-4.5 h-4.5" />
+                          <span className="text-[9px] font-black uppercase tracking-wide">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
                 {/* Modern Filter Board */}
                 <div className="bg-white rounded-2xl p-4 sm:p-5 grid grid-cols-1 md:grid-cols-12 gap-5 items-stretch shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.04)] transition-all">

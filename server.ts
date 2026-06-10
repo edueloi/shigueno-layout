@@ -28,6 +28,7 @@ import employeesRouter, { ensureEmployeesTable } from './server/routes/employees
 import financeiroRouter, { ensureFinanceiroTables } from './server/routes/financeiro.routes';
 import recruitmentRouter, { ensureRecruitmentTables } from './server/routes/recruitment.routes';
 import onboardingRouter, { ensureOnboardingTables } from './server/routes/onboarding.routes';
+import quickNotesRouter, { ensureQuickNotesTable } from './server/routes/quick-notes.routes';
 
 async function startServer() {
   const app = express();
@@ -41,6 +42,7 @@ async function startServer() {
     await ensureFinanceiroTables();
     await ensureRecruitmentTables();
     await ensureOnboardingTables();
+    await ensureQuickNotesTable();
     console.log('Tabelas auxiliares verificadas/criadas com sucesso.');
   } catch (e) {
     console.warn('Aviso ao verificar tabelas auxiliares:', e);
@@ -77,6 +79,7 @@ async function startServer() {
   app.use('/api', financeiroRouter);
   app.use('/api', recruitmentRouter);
   app.use('/api', onboardingRouter);
+  app.use('/api', quickNotesRouter);
   app.use('/api', chatbotRouter);
   // integrationRouter usa router.use(apiKeyMiddleware) sem path — deve ser montado com prefix /api/integration
   app.use('/api/integration', integrationRouter);
