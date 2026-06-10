@@ -105,6 +105,85 @@
   animation: goldShine 6s ease-in-out infinite;
 }
 
+/* ── Organograma Shigueno — árvore com conectores ─────────── */
+.org-tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 30px;
+  position: relative;
+}
+
+.org-tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 12px 0;
+  position: relative;
+}
+
+/* Trilho horizontal acima de cada filho (metades esquerda/direita) */
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 30px;
+  border-top: 2px solid rgba(52, 211, 153, 0.35);
+}
+
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid rgba(52, 211, 153, 0.35);
+}
+
+/* Filho único: só a linha vertical do pai */
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+
+/* Pontas do trilho arredondadas */
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+
+.org-tree li:last-child::before {
+  border-right: 2px solid rgba(52, 211, 153, 0.35);
+  border-radius: 0 12px 0 0;
+}
+
+.org-tree li:first-child::after {
+  border-radius: 12px 0 0 0;
+}
+
+/* Linha vertical descendo do pai até o trilho dos filhos */
+.org-tree ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 30px;
+  border-left: 2px solid rgba(52, 211, 153, 0.35);
+}
+
+/* Raiz: sem conectores acima */
+.org-tree > ul {
+  padding-top: 0;
+}
+
+.org-tree > ul::before {
+  display: none;
+}
+
+.org-tree > ul > li {
+  padding-top: 0;
+}
+
 /* Barra de progresso do Toast */
 @keyframes toastBar {
   from { width: 100%; }

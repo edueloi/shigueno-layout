@@ -156,9 +156,10 @@ export default function EmployeesTab({ token, canEdit }: { token: string; canEdi
         </Card>
       )}
 
-      {/* Barra de filtros */}
-      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_2px_12px_rgba(2,30,20,0.04)] p-3 flex flex-col lg:flex-row items-stretch lg:items-center gap-3">
-        <div className="relative flex-1 min-w-0">
+      {/* Barra de filtros — linha única compacta, quebra organizada no celular */}
+      <div className="bg-white rounded-2xl border border-slate-200/70 shadow-[0_2px_12px_rgba(2,30,20,0.04)] p-3 flex flex-wrap items-center gap-2.5">
+        {/* Busca */}
+        <div className="relative flex-1 min-w-[220px]">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <Input
             value={search}
@@ -167,34 +168,41 @@ export default function EmployeesTab({ token, canEdit }: { token: string; canEdi
             className="pl-9"
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={deptFilter} onChange={(e: any) => setDeptFilter(e.target.value)} className="w-auto min-w-[120px]">
-            {allDepts.map(d => <option key={d} value={d}>{d}</option>)}
-          </Select>
-          <Select value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} className="w-auto min-w-[110px]">
-            <option value="Todos">Todos</option><option>Ativo</option><option>Afastado</option><option>Férias</option><option>Desligado</option>
-          </Select>
 
-          {/* Alternador de visualização */}
-          <div className="flex bg-slate-100 rounded-xl p-0.5">
-            {VIEW_MODES.map(({ key, label, icon: VIcon }) => (
-              <button key={key} onClick={() => setViewMode(key)}
-                className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
-                  viewMode === key ? 'bg-white shadow-sm text-emerald-800' : 'text-slate-400 hover:text-slate-600'
-                }`}>
-                <VIcon className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <Button variant="outline" size="sm" icon={RefreshCw} loading={loading} onClick={load} title="Recarregar" />
-          {canEdit && (
-            <Button variant="primary" size="sm" icon={Plus} onClick={openNew}>
-              Novo Funcionário
-            </Button>
-          )}
+        {/* Departamento */}
+        <div className="w-[calc(50%-5px)] sm:w-40">
+          <Select value={deptFilter} onChange={(e: any) => setDeptFilter(e.target.value)} title="Departamento">
+            {allDepts.map(d => <option key={d} value={d}>{d === 'Todos' ? 'Depto: Todos' : d}</option>)}
+          </Select>
         </div>
+
+        {/* Status */}
+        <div className="w-[calc(50%-5px)] sm:w-36">
+          <Select value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)} title="Status">
+            <option value="Todos">Status: Todos</option>
+            <option>Ativo</option><option>Afastado</option><option>Férias</option><option>Desligado</option>
+          </Select>
+        </div>
+
+        {/* Alternador de visualização */}
+        <div className="flex bg-slate-100 rounded-xl p-0.5 shrink-0">
+          {VIEW_MODES.map(({ key, label, icon: VIcon }) => (
+            <button key={key} onClick={() => setViewMode(key)} title={label}
+              className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                viewMode === key ? 'bg-white shadow-sm text-emerald-800' : 'text-slate-400 hover:text-slate-600'
+              }`}>
+              <VIcon className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        <Button variant="outline" size="sm" icon={RefreshCw} loading={loading} onClick={load} title="Recarregar" className="shrink-0 !py-2.5" />
+        {canEdit && (
+          <Button variant="primary" size="sm" icon={Plus} onClick={openNew} className="shrink-0 flex-1 sm:flex-none">
+            Novo Funcionário
+          </Button>
+        )}
       </div>
 
       {/* Conteúdo */}

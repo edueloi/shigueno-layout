@@ -52,8 +52,8 @@ export default function EmployeeCard({ emp, onView, onEdit, onDelete, canEdit }:
         </div>
       </div>
 
-      {/* Avatar sobreposto + identificação */}
-      <div className="px-4 -mt-8 cursor-pointer" onClick={onView}>
+      {/* Avatar sobreposto + identificação (relative z-10 para pintar acima do banner) */}
+      <div className="relative z-10 px-4 -mt-8 cursor-pointer" onClick={onView}>
         <div className="flex items-end justify-between">
           <Avatar emp={emp} size="lg" ring />
           <div className="flex flex-wrap gap-1 justify-end pb-0.5 max-w-[55%]">
