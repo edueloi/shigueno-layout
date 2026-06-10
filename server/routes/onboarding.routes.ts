@@ -4,6 +4,49 @@ import crypto from 'crypto';
 
 const router = Router();
 
+export async function ensureOnboardingTables() {
+  const db = await getDb();
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS candidate_onboarding (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id  INT NOT NULL,
+      employee_id   INT NULL,
+      status        ENUM('Pendente','Em andamento','Concluído','Cancelado') DEFAULT 'Pendente',
+      start_date    DATE NULL,
+      hired_date    DATE NULL,
+      department    VARCHAR(80) NULL,
+      role          VARCHAR(80) NULL,
+      manager_id    INT NULL,
+      salary        DECIMAL(10,2) NULL,
+      notes         TEXT NULL,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS onboarding_items (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      onboarding_id   INT NOT NULL,
+      category        VARCHAR(60) NOT NULL,
+      item            VARCHAR(160) NOT NULL,
+      description     VARCHAR(200) NULL,
+      required        TINYINT(1) DEFAULT 1,
+      status          ENUM('Pendente','Entregue','Não Aplicável') DEFAULT 'Pendente',
+      delivered_at    DATE NULL,
+      delivered_by    VARCHAR(80) NULL,
+      notes           TEXT NULL,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Garante coluna uid na tabela candidates (caso não criada pela migration)
+  try {
+    await db.run(`ALTER TABLE candidates ADD COLUMN uid VARCHAR(36) DEFAULT NULL`);
+  } catch { /* já existe */ }
+}
+
 // ── GET /api/candidates/uid/:uid — busca candidato por UID ───────────────────
 router.get('/candidates/uid/:uid', async (req, res) => {
   try {

@@ -27,7 +27,7 @@ import userPreferencesRouter, { ensureUserPreferencesTable } from './server/rout
 import employeesRouter, { ensureEmployeesTable } from './server/routes/employees.routes';
 import financeiroRouter, { ensureFinanceiroTables } from './server/routes/financeiro.routes';
 import recruitmentRouter, { ensureRecruitmentTables } from './server/routes/recruitment.routes';
-import onboardingRouter from './server/routes/onboarding.routes';
+import onboardingRouter, { ensureOnboardingTables } from './server/routes/onboarding.routes';
 
 async function startServer() {
   const app = express();
@@ -40,6 +40,7 @@ async function startServer() {
     await ensureEmployeesTable();
     await ensureFinanceiroTables();
     await ensureRecruitmentTables();
+    await ensureOnboardingTables();
     console.log('Tabelas auxiliares verificadas/criadas com sucesso.');
   } catch (e) {
     console.warn('Aviso ao verificar tabelas auxiliares:', e);
