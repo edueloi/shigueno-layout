@@ -10,7 +10,7 @@ import { authMiddleware } from './server/middlewares/auth.middleware';
 // Routes
 import siteSettingsRouter from './server/routes/siteSettings.routes';
 import authRouter from './server/routes/auth.routes';
-import vacanciesRouter from './server/routes/vacancies.routes';
+import vacanciesRouter, { ensureVacancyColumns } from './server/routes/vacancies.routes';
 import candidatesRouter from './server/routes/candidates.routes';
 import suppliersRouter from './server/routes/suppliers.routes';
 import dashboardRouter, { ensureProductionTable } from './server/routes/dashboard.routes';
@@ -43,6 +43,7 @@ async function startServer() {
     await ensureRecruitmentTables();
     await ensureOnboardingTables();
     await ensureQuickNotesTable();
+    await ensureVacancyColumns();
     console.log('Tabelas auxiliares verificadas/criadas com sucesso.');
   } catch (e) {
     console.warn('Aviso ao verificar tabelas auxiliares:', e);

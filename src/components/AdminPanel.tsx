@@ -23,7 +23,8 @@ import BlogManager from './BlogManager';
 import A4PosterModal from './A4PosterModal';
 import TrackingPanel from './TrackingPanel';
 import ActivityBoard from './ActivityBoard';
-import { StatCard, NotificationBell, buildNotifications, QuickNotes, SkeletonDashboard } from './ui';
+import { StatCard, NotificationBell, buildNotifications, QuickNotes, SkeletonDashboard, Button, EmptyState } from './ui';
+import { VacancyCard, VacancyFormModal, VacancyDetailModal } from './vacancies';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -773,13 +774,9 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   const [permSaving, setPermSaving] = React.useState<number | null>(null);
 
   const [vacancyFormOpen, setVacancyFormOpen] = React.useState(false);
-  const [selectedVacancyId, setSelectedVacancyId] = React.useState<number | null>(null);
-  const [vacTitle, setVacTitle] = React.useState('');
-  const [vacDept, setVacDept] = React.useState('');
-  const [vacDesc, setVacDesc] = React.useState('');
-  const [vacLoc, setVacLoc] = React.useState('Tatuí - SP');
-  const [vacReq, setVacReq] = React.useState('');
-  const [vacStatus, setVacStatus] = React.useState('Ativa');
+  const [editingVacancy, setEditingVacancy] = React.useState<Vacancy | null>(null);
+  const [viewingVacancy, setViewingVacancy] = React.useState<Vacancy | null>(null);
+  const [vacancySaving, setVacancySaving] = React.useState(false);
 
   // Poster generator states
   const [selectedVacancyForPoster, setSelectedVacancyForPoster] = React.useState<Vacancy | null>(null);
@@ -1380,47 +1377,28 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   };
 
   // --- CRUD VAGAS ---
-  const saveVacancy = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!vacTitle || !vacDept || !vacDesc || !vacReq) {
-      alert('Preencha os campos essenciais da vaga corporativa.');
-      return;
-    }
-
-    const payload = {
-      title: vacTitle,
-      department: vacDept,
-      description: vacDesc,
-      location: vacLoc,
-      requirements: vacReq,
-      status: vacStatus
-    };
-
+  const saveVacancyData = async (payload: any, id?: number): Promise<boolean> => {
+    setVacancySaving(true);
     try {
-      let res;
-      if (selectedVacancyId) {
-        res = await authFetch(`/api/vacancies/${selectedVacancyId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      } else {
-        res = await authFetch('/api/vacancies', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }
-
+      const res = await authFetch(id ? `/api/vacancies/${id}` : '/api/vacancies', {
+        method: id ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
       const data = await res.json();
       if (data.success) {
-        showSuccess(selectedVacancyId ? 'Vaga corrigida e atualizada.' : 'Nova vaga publicada no portal do Trabalhe Conosco.');
+        showSuccess(id ? 'Vaga atualizada com sucesso.' : 'Nova vaga publicada no portal do Trabalhe Conosco.');
         setVacancyFormOpen(false);
-        resetVacancyForm();
+        setEditingVacancy(null);
         fetchInitialData();
+        return true;
       }
+      return false;
     } catch (err) {
       console.error(err);
+      return false;
+    } finally {
+      setVacancySaving(false);
     }
   };
 
@@ -1445,24 +1423,9 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   };
 
   const openEditVacancy = (vac: Vacancy) => {
-    setSelectedVacancyId(vac.id);
-    setVacTitle(vac.title);
-    setVacDept(vac.department);
-    setVacDesc(vac.description);
-    setVacLoc(vac.location);
-    setVacReq(vac.requirements);
-    setVacStatus(vac.status);
+    setEditingVacancy(vac);
+    setViewingVacancy(null);
     setVacancyFormOpen(true);
-  };
-
-  const resetVacancyForm = () => {
-    setSelectedVacancyId(null);
-    setVacTitle('');
-    setVacDept('');
-    setVacDesc('');
-    setVacLoc('Tatuí - SP');
-    setVacReq('');
-    setVacStatus('Ativa');
   };
 
   // --- RECRUTAMENTO GERENCIAR CURRÍCULOS ---
@@ -3454,232 +3417,96 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
             )}
 
             {/* ── VAGAS ─────────────────────────────────────────────────────── */}
-            {activeSubTab === 'vacancies' && (
-              <div className="space-y-6">
-                
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-150 pb-4">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-900">Gerenciador de Vagas de Recrutamento</h2>
-                    <p className="text-xs text-slate-500">Crie, altere e publique novas demandas do site unificado "Trabalhe Conosco".</p>
+            {activeSubTab === 'vacancies' && (() => {
+              const canEditVac = currentUserRole === 'admin' || !!(currentUserPerms && currentUserPerms['can_edit_vacancies']);
+              const ativas = vacancies.filter(v => v.status === 'Ativa').length;
+              const vinculados = candidates.filter(c => c.vacancy_id != null).length;
+              const countFor = (id: number) => candidates.filter(c => String(c.vacancy_id) === String(id)).length;
+              return (
+              <div className="space-y-5">
+
+                {/* Cabeçalho da seção */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-800 to-emerald-950 border border-emerald-700/40 flex items-center justify-center shrink-0 shadow-md shadow-emerald-900/20">
+                      <Briefcase className="w-5 h-5 text-amber-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight">Gestão de Vagas</h2>
+                      <p className="text-[10px] sm:text-[11px] text-slate-400 font-bold font-mono">Site "Trabalhe Conosco" · cartaz A4 em 3 estilos · PDF</p>
+                    </div>
                   </div>
-                  
-                  <button
-                    onClick={() => {
-                      resetVacancyForm();
-                      setVacancyFormOpen(true);
-                    }}
-                    className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl shadow-xs transition-colors flex items-center space-x-1.5"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Cadastrar Nova Vaga</span>
-                  </button>
+                  {canEditVac && (
+                    <Button variant="primary" icon={Plus} onClick={() => { setEditingVacancy(null); setVacancyFormOpen(true); }}>
+                      Cadastrar Nova Vaga
+                    </Button>
+                  )}
                 </div>
 
-                {vacancyFormOpen && (
-                  <div className="bg-[#fafbfa] border border-emerald-350 rounded-3xl p-6 shadow-xs animate-slide-in">
-                    <div className="flex justify-between items-center border-b border-slate-150 pb-3 mb-4">
-                      <h3 className="font-extrabold text-emerald-950 text-sm">
-                        {selectedVacancyId ? '✏ Editar Vaga' : '➕ Cadastrar Nova Vaga'}
-                      </h3>
-                      <button 
-                        onClick={() => {
-                          setVacancyFormOpen(false);
-                          resetVacancyForm();
-                        }}
-                        className="text-xs text-slate-400 hover:text-slate-655 font-bold"
-                      >
-                        Cancelar [X]
-                      </button>
-                    </div>
+                {/* KPIs de recrutamento */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <StatCard label="Total de Vagas" value={vacancies.length} icon={Briefcase} tone="emerald" hint="publicadas" />
+                  <StatCard label="Ativas" value={ativas} icon={CheckCircle} tone="gold" hint="visíveis no site" />
+                  <StatCard label="Pausadas" value={vacancies.length - ativas} icon={EyeOff} tone="slate" hint="ocultas do site" />
+                  <StatCard label="Candidaturas" value={vinculados} icon={Users} tone="blue" hint="vinculadas a vagas" />
+                </div>
 
-                    <form onSubmit={saveVacancy} className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Título do Cargo *</label>
-                          <input
-                            type="text"
-                            required
-                            value={vacTitle}
-                            onChange={(e) => setVacTitle(e.target.value)}
-                            placeholder="Ex: Tratorista Agrícola especializado"
-                            className="w-full bg-white border border-slate-250 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Setor / Departamento *</label>
-                          <input
-                            type="text"
-                            required
-                            value={vacDept}
-                            onChange={(e) => setVacDept(e.target.value)}
-                            placeholder="Ex: Citricultura, Avicultura"
-                            className="w-full bg-white border border-slate-250 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Localização *</label>
-                          <input
-                            type="text"
-                            required
-                            value={vacLoc}
-                            onChange={(e) => setVacLoc(e.target.value)}
-                            placeholder="Ex: Tatuí - SP"
-                            className="w-full bg-white border border-slate-250 px-3.5 py-2.5 rounded-xl text-xs font-semibold focus:outline-emerald-850"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Descrição das Atribuições *</label>
-                        <textarea
-                          rows={3}
-                          required
-                          value={vacDesc}
-                          onChange={(e) => setVacDesc(e.target.value)}
-                          placeholder="Responsabilidades do empregado diárias, cuidados rurais..."
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-medium focus:outline-emerald-850 font-sans leading-relaxed"
-                        ></textarea>
-                      </div>
-
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Requisitos Técnicos / Cursos *</label>
-                        <textarea
-                          rows={2}
-                          required
-                          value={vacReq}
-                          onChange={(e) => setVacReq(e.target.value)}
-                          placeholder="Ex: Disponibilidade para residir em Tatuí. Conhecimento de adubação."
-                          className="w-full bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-medium focus:outline-emerald-850 font-sans leading-relaxed"
-                        ></textarea>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">Status Interno</label>
-                          <select
-                            value={vacStatus}
-                            onChange={(e) => setVacStatus(e.target.value)}
-                            className="bg-white border border-slate-250 px-3.5 py-2 rounded-xl text-xs font-bold focus:outline-emerald-850"
-                          >
-                            <option value="Ativa">Ativa (Visível para candidatos)</option>
-                            <option value="Pausada">Pausada (Oculta no site)</option>
-                          </select>
-                        </div>
-
-                        <div className="flex space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setVacancyFormOpen(false);
-                              resetVacancyForm();
-                            }}
-                            className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="submit"
-                            className="bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl transition-colors"
-                          >
-                            Publicar Vaga
-                          </button>
-                        </div>
-                      </div>
-                    </form>
+                {/* Grid de vagas */}
+                {vacancies.length === 0 ? (
+                  <div className="bg-white border border-dashed border-slate-200 rounded-2xl">
+                    <EmptyState
+                      icon={Briefcase}
+                      title="Nenhuma vaga cadastrada"
+                      message="Publique a primeira vaga para aparecer no site Trabalhe Conosco."
+                      action={canEditVac ? (
+                        <Button variant="primary" icon={Plus} onClick={() => { setEditingVacancy(null); setVacancyFormOpen(true); }}>
+                          Cadastrar Primeira Vaga
+                        </Button>
+                      ) : undefined}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {vacancies.map((v) => (
+                      <VacancyCard
+                        key={v.id}
+                        vacancy={v}
+                        candidateCount={countFor(v.id)}
+                        canEdit={canEditVac}
+                        onView={() => setViewingVacancy(v)}
+                        onPoster={() => { setSelectedVacancyForPoster(v); setIsPosterModalOpen(true); }}
+                        onEdit={() => openEditVacancy(v)}
+                        onDelete={() => deleteVacancy(v)}
+                      />
+                    ))}
                   </div>
                 )}
 
-                {/* Grid de Vagas — cards responsivos aprimorados */}
-                {vacancies.length === 0 ? (
-                  <div className="py-20 text-center bg-white border border-dashed border-slate-200 rounded-2xl">
-                    <Briefcase className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm font-bold text-slate-500">Nenhuma vaga cadastrada ainda.</p>
-                    <p className="text-xs text-slate-400 mt-1">Clique em "Cadastrar Nova Vaga" para começar.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                    {vacancies.map((v) => {
-                      const candidateCount = candidates.filter(c => String(c.vacancy_id) === String(v.id)).length;
-                      return (
-                        <div
-                          key={v.id}
-                          className="bg-white rounded-2xl border border-slate-100 hover:border-emerald-200/60 shadow-[0_2px_12px_rgba(0,0,0,0.04)] hover:shadow-[0_6px_24px_rgba(4,120,87,0.08)] transition-all duration-300 flex flex-col overflow-hidden"
-                        >
-                          {/* Card top accent bar */}
-                          <div className={`h-1 w-full ${v.status === 'Ativa' ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-slate-200'}`} />
+                {/* Modal de cadastro/edição */}
+                {vacancyFormOpen && canEditVac && (
+                  <VacancyFormModal
+                    initial={editingVacancy}
+                    saving={vacancySaving}
+                    onSave={saveVacancyData}
+                    onCancel={() => { setVacancyFormOpen(false); setEditingVacancy(null); }}
+                  />
+                )}
 
-                          <div className="p-5 flex flex-col flex-1 space-y-3">
-                            {/* Header */}
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <span className="inline-block text-[9px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-100 px-2 py-0.5 rounded-md font-mono mb-1.5">
-                                  {v.department}
-                                </span>
-                                <h3 className="text-sm font-extrabold text-slate-900 leading-snug truncate">{v.title}</h3>
-                              </div>
-                              <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
-                                v.status === 'Ativa'
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                                  : 'bg-slate-100 text-slate-500 border border-slate-200'
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${v.status === 'Ativa' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                                {v.status}
-                              </span>
-                            </div>
-
-                            {/* Info */}
-                            <div className="space-y-1.5 text-xs text-slate-600">
-                              <div className="flex items-center space-x-1.5">
-                                <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="font-semibold">{v.location}</span>
-                              </div>
-                              <p className="text-slate-500 line-clamp-2 leading-relaxed">{v.description}</p>
-                            </div>
-
-                            {/* Stats */}
-                            <div className="flex items-center space-x-3 pt-1">
-                              <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg">
-                                <Users className="w-3 h-3" />
-                                <span>{candidateCount} candidato{candidateCount !== 1 ? 's' : ''}</span>
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-mono">#{v.id}</span>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="pt-3 mt-auto border-t border-slate-100 flex items-center justify-between gap-2">
-                              <button
-                                onClick={() => { setSelectedVacancyForPoster(v); setIsPosterModalOpen(true); }}
-                                className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-[10px] rounded-lg hover:bg-emerald-800 hover:text-white transition-all"
-                              >
-                                <FileText className="w-3.5 h-3.5" />
-                                <span>Cartaz A4</span>
-                              </button>
-                              <div className="flex items-center space-x-1.5">
-                                <button
-                                  onClick={() => openEditVacancy(v)}
-                                  className="p-1.5 px-3 border border-slate-200 text-slate-600 font-bold text-[10px] rounded-lg hover:border-emerald-300 hover:bg-emerald-50 transition-colors"
-                                >
-                                  Editar
-                                </button>
-                                <button
-                                  onClick={() => deleteVacancy(v)}
-                                  className="p-1.5 px-2.5 border border-rose-100 text-rose-600 font-bold text-[10px] rounded-lg hover:bg-rose-600 hover:text-white transition-all"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {/* Modal de detalhes */}
+                {viewingVacancy && (
+                  <VacancyDetailModal
+                    vacancy={viewingVacancy}
+                    candidateCount={countFor(viewingVacancy.id)}
+                    canEdit={canEditVac}
+                    onClose={() => setViewingVacancy(null)}
+                    onEdit={() => openEditVacancy(viewingVacancy)}
+                    onPoster={() => { setSelectedVacancyForPoster(viewingVacancy); setIsPosterModalOpen(true); setViewingVacancy(null); }}
+                  />
                 )}
 
               </div>
-            )}
+              );
+            })()}
 
             {/* ── CANDIDATOS ────────────────────────────────────────────────── */}
             {activeSubTab === 'candidates' && (

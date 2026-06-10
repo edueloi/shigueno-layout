@@ -58,6 +58,18 @@ async function run() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('vacancies');
 
+  // Colunas extras de vacancies — idempotente (catch ignora se já existir)
+  const vacancyCols = [
+    `ALTER TABLE vacancies ADD COLUMN hierarchy_level INT DEFAULT NULL`,
+    `ALTER TABLE vacancies ADD COLUMN contract_type VARCHAR(50) DEFAULT NULL`,
+    `ALTER TABLE vacancies ADD COLUMN salary_range VARCHAR(100) DEFAULT NULL`,
+    `ALTER TABLE vacancies ADD COLUMN openings INT DEFAULT 1`,
+  ];
+  for (const col of vacancyCols) {
+    try { await db.execute(col); } catch(e) { /* coluna já existe */ }
+  }
+  ok('vacancies columns');
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS candidates (
       id           INT AUTO_INCREMENT PRIMARY KEY,

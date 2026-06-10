@@ -6,6 +6,12 @@ export interface Vacancy {
   location: string;
   requirements: string;
   status: string; // 'Ativa', 'Pausada'
+  hierarchy_level?: number | null;
+  contract_type?: string | null;
+  salary_range?: string | null;
+  openings?: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Supplier {
