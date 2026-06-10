@@ -62,6 +62,36 @@ export interface DashboardStats {
   productionStats: Array<{ month: string; year?: number; ovos: number; citros: number; cafe: number; nelore?: number }>;
 }
 
+export interface DashboardSummary {
+  employees: {
+    total: number;
+    ativos: number;
+    departments: number;
+    birthdaysMonth: number;
+    onVacation: number;
+    upcomingVacations: number;
+  };
+  payroll: {
+    currentMonth: string;
+    totalNet: number;
+    totalEmps: number;
+    paidCount: number;
+    prevMonthNet: number;
+  };
+  stock: {
+    totalItems: number;
+    lowStockCount: number;
+  };
+  activities: {
+    overdue: number;
+    dueSoon: number;
+  };
+  recruitment: {
+    recentByStatus: Array<{ label: string; value: number }>;
+    vacanciesByDept: Array<{ label: string; value: number }>;
+  };
+}
+
 export interface Candidate {
   id: number;
   name: string;

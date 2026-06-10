@@ -135,6 +135,115 @@ router.put('/dashboard/production/:month', async (req, res) => {
   }
 });
 
+// GET /api/dashboard/summary → KPIs reais de equipe, financeiro e atividades para o dashboard
+router.get('/dashboard/summary', async (req, res) => {
+  try {
+    const db = await getDb();
+
+    // Equipe
+    const employeesCount = await db.get<{ total: number; ativos: number }>(
+      `SELECT COUNT(*) as total, SUM(status = 'Ativo') as ativos FROM employees`
+    ).catch(() => ({ total: 0, ativos: 0 }));
+
+    const departmentsCount = await db.get<{ total: number }>(
+      `SELECT COUNT(DISTINCT department) as total FROM employees WHERE status = 'Ativo'`
+    ).catch(() => ({ total: 0 }));
+
+    const birthdaysThisMonth = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM employees WHERE status = 'Ativo' AND MONTH(birth_date) = MONTH(CURDATE())`
+    ).catch(() => ({ total: 0 }));
+
+    const vacationsActive = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM employee_vacations WHERE status IN ('Aprovado','Em curso') AND start_date <= CURDATE() AND end_date >= CURDATE()`
+    ).catch(() => ({ total: 0 }));
+
+    // Financeiro — folha do mês atual
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const payrollMonth = await db.get<{ total_net: number; total_emps: number; processed: number }>(
+      `SELECT COALESCE(SUM(net_salary),0) as total_net, COUNT(*) as total_emps, SUM(status='Pago') as processed FROM payroll WHERE reference_month = ?`,
+      [currentMonth]
+    ).catch(() => ({ total_net: 0, total_emps: 0, processed: 0 }));
+
+    // Folha do mês anterior para comparativo
+    const prevDate = new Date();
+    prevDate.setMonth(prevDate.getMonth() - 1);
+    const prevMonth = prevDate.toISOString().slice(0, 7);
+    const payrollPrev = await db.get<{ total_net: number }>(
+      `SELECT COALESCE(SUM(net_salary),0) as total_net FROM payroll WHERE reference_month = ?`,
+      [prevMonth]
+    ).catch(() => ({ total_net: 0 }));
+
+    // Estoque — itens com quantidade abaixo do mínimo
+    const lowStockCount = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM stock_items WHERE quantity <= min_quantity AND min_quantity > 0`
+    ).catch(() => ({ total: 0 }));
+
+    const stockItemsTotal = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM stock_items`
+    ).catch(() => ({ total: 0 }));
+
+    // Férias próximas (próximos 30 dias)
+    const upcomingVacations = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM employee_vacations WHERE status = 'Aprovado' AND start_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)`
+    ).catch(() => ({ total: 0 }));
+
+    // Atividades com prazo vencido (ainda abertas)
+    const overdueActivities = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM activities WHERE completed_at IS NULL AND due_date < CURDATE()`
+    ).catch(() => ({ total: 0 }));
+
+    // Atividades abertas com prazo nos próximos 7 dias
+    const dueSoonActivities = await db.get<{ total: number }>(
+      `SELECT COUNT(*) as total FROM activities WHERE completed_at IS NULL AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)`
+    ).catch(() => ({ total: 0 }));
+
+    // Candidatos por status (últimos 30 dias)
+    const recentCandsByStatus = await db.all(
+      `SELECT status as label, COUNT(*) as value FROM candidates WHERE applied_at >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) GROUP BY status ORDER BY value DESC`
+    ).catch(() => []);
+
+    // Vagas por departamento
+    const vacanciesByDept = await db.all(
+      `SELECT department as label, COUNT(*) as value FROM vacancies WHERE status = 'Ativa' GROUP BY department ORDER BY value DESC LIMIT 6`
+    ).catch(() => []);
+
+    res.json({
+      success: true,
+      summary: {
+        employees: {
+          total: employeesCount?.total || 0,
+          ativos: employeesCount?.ativos || 0,
+          departments: departmentsCount?.total || 0,
+          birthdaysMonth: birthdaysThisMonth?.total || 0,
+          onVacation: vacationsActive?.total || 0,
+          upcomingVacations: upcomingVacations?.total || 0,
+        },
+        payroll: {
+          currentMonth,
+          totalNet: payrollMonth?.total_net || 0,
+          totalEmps: payrollMonth?.total_emps || 0,
+          paidCount: payrollMonth?.processed || 0,
+          prevMonthNet: payrollPrev?.total_net || 0,
+        },
+        stock: {
+          totalItems: stockItemsTotal?.total || 0,
+          lowStockCount: lowStockCount?.total || 0,
+        },
+        activities: {
+          overdue: overdueActivities?.total || 0,
+          dueSoon: dueSoonActivities?.total || 0,
+        },
+        recruitment: {
+          recentByStatus: recentCandsByStatus,
+          vacanciesByDept,
+        }
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET /api/dashboard/production → lista todos os meses
 router.get('/dashboard/production', async (req, res) => {
   try {

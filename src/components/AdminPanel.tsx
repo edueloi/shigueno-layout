@@ -18,7 +18,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, 
   CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell 
 } from 'recharts';
-import { Vacancy, Candidate, Supplier, DashboardStats } from '../types';
+import { Vacancy, Candidate, Supplier, DashboardStats, DashboardSummary } from '../types';
 import BlogManager from './BlogManager';
 import A4PosterModal from './A4PosterModal';
 import TrackingPanel from './TrackingPanel';
@@ -707,6 +707,7 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   
   // Real database states
   const [stats, setStats] = React.useState<DashboardStats | null>(null);
+  const [summary, setSummary] = React.useState<DashboardSummary | null>(null);
   const [activities, setActivities] = React.useState<any[]>([]);
   const [suppliers, setSuppliers] = React.useState<any[]>([]);
   const [vacancies, setVacancies] = React.useState<Vacancy[]>([]);
@@ -722,12 +723,6 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
   const [selectedRouteId, setSelectedRouteId] = React.useState<number | null>(null);
   const [simulationActive, setSimulationActive] = React.useState<boolean>(true);
 
-  // Ecological Circular integration states for the Shigueno Circular Planner (covers all four core segments: Eggs, Oranges, Coffee, Cattle)
-  const [simOvos, setSimOvos] = React.useState<number>(100);
-  const [simCitros, setSimCitros] = React.useState<number>(100);
-  const [simCafe, setSimCafe] = React.useState<number>(100);
-  const [simNelore, setSimNelore] = React.useState<number>(100);
-  
   // Create Route Form Overlay
   const [routeFormOpen, setRouteFormOpen] = React.useState(false);
   const [driverName, setDriverName] = React.useState('');
@@ -867,6 +862,13 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
       const reportsData = await reportsRes.json();
       if (reportsData.success) {
         setStats(reportsData.stats);
+      }
+
+      // Fetch Dashboard summary (equipe, financeiro, estoque, atividades)
+      const summaryRes = await fetch('/api/dashboard/summary');
+      const summaryData = await summaryRes.json();
+      if (summaryData.success) {
+        setSummary(summaryData.summary);
       }
 
       // Fetch Activities list (active)
@@ -1037,49 +1039,6 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
       }))
       .sort((a, b) => b.value - a.value);
   }, [filteredSuppliersForReports]);
-
-  // --- INTEGRATED AGRO-ECOLOGICAL PLANNER CALCULATIONS ---
-  // Base constants based on actual historic monthly averages of Grupo Shigueno
-  const BASE_MONTHLY_OVOS = 500; // 500 caixas/mês
-  const BASE_MONTHLY_CITROS = 400; // 400 toneladas/mês
-  const BASE_MONTHLY_CAFE = 320; // 320 sacas/mês
-  const BASE_NELORE_HEAD = 2400; // 2400 cabeças de gado nelore MT
-
-  const simResults = React.useMemo(() => {
-    const ovosVal = Math.round(BASE_MONTHLY_OVOS * (simOvos / 100));
-    const citrosVal = Math.round(BASE_MONTHLY_CITROS * (simCitros / 100));
-    const cafeVal = Math.round(BASE_MONTHLY_CAFE * (simCafe / 100));
-    const neloreVal = Math.round(BASE_NELORE_HEAD * (simNelore / 100));
-
-    // Circular flow: 1 box of eggs translates directly to roughly 0.06 tons of premium organic chicken fertilizer (esterco) available for Citros & Café
-    const manureGenerated = Math.round((ovosVal * 0.08) * 10) / 10; // tons
-
-    // Chemical fertilizer displacement: R$ 165 saved per ton of nitrogen compost generated
-    const fertilizerSavings = Math.round(manureGenerated * 165);
-
-    // Soil biology score base: composite of organic compost and crop balance
-    const combinedCrops = citrosVal + (cafeVal * 1.5);
-    const fertilizationRatio = combinedCrops > 0 ? (manureGenerated * 100) / combinedCrops : 100;
-    const soilScore = Math.min(100, Math.round(75 + Math.min(25, fertilizationRatio * 1.8)));
-
-    // Revenue generation estimate
-    const revenueOvos = ovosVal * 195; // R$ 195 por caixa
-    const revenueCitros = citrosVal * 1450; // R$ 1450 por tonelada
-    const revenueCafe = cafeVal * 880; // R$ 880 por saca
-    const revenueNelore = neloreVal * 2600; // R$ 2600 por cabeça
-    const totalRevenueEst = revenueOvos + revenueCitros + revenueCafe + (revenueNelore / 12);
-
-    return {
-      ovosVal,
-      citrosVal,
-      cafeVal,
-      neloreVal,
-      manureGenerated,
-      fertilizerSavings,
-      soilScore,
-      totalRevenueEst
-    };
-  }, [simOvos, simCitros, simCafe, simNelore]);
 
   const showSuccess = (msg: string) => {
     setSuccessNotice(msg);
@@ -2403,165 +2362,218 @@ export default function AdminPanel({ onLogout, onNavigate, onSettingsUpdate, use
                   />
                 )}
 
-                {/* INTERACTIVE SHIGUENO CIRCULAR PLANNER */}
-                <div id="agroecological-planner" className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 space-y-6 shadow-[0_12px_40px_rgba(4,120,87,0.15)] relative overflow-hidden select-none animate-fade-in">
-                  {/* Glowing background blob */}
-                  <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
-                  
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/10 pb-4 relative z-10">
-                    <div>
-                      <span className="text-[9px] bg-emerald-800 text-emerald-100 font-extrabold px-2 py-1 rounded-md tracking-wider uppercase font-mono">Modelo Ecológico de Alta Produtividade</span>
-                      <h3 className="text-lg sm:text-xl font-black mt-1">Planejador Agroecológico Integrado (Ciclo Circular Termofílico)</h3>
-                      <p className="text-xs text-emerald-200/70 mt-0.5">Simule a interação sinérgica ideal entre Avicultura (compostagem), Citros, Café e Gado Nelore.</p>
+                {/* PAINEL EQUIPE & FINANCEIRO — dados reais do banco */}
+                {summary && (
+                  <div className="space-y-6">
+
+                    {/* Equipe */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2 text-slate-800">
+                        <Users className="w-4 h-4 text-blue-600" />
+                        <h3 className="text-xs font-black uppercase tracking-wider font-mono">Equipe & Recursos Humanos</h3>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <button
+                          onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['equipe']); setActiveSubTab('equipe'); setViewingCandidateUid(null); }}
+                          className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] border border-transparent hover:border-blue-200 transition-all cursor-pointer text-left group"
+                        >
+                          <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl w-fit group-hover:bg-blue-100 transition-colors">
+                            <Users className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Funcionários Ativos</p>
+                            <h4 className="text-xl font-black text-slate-900">{summary.employees.ativos}</h4>
+                            <p className="text-[9px] text-blue-600 font-bold">de {summary.employees.total} total →</p>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['equipe']); setActiveSubTab('equipe'); setViewingCandidateUid(null); }}
+                          className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] border border-transparent hover:border-indigo-200 transition-all cursor-pointer text-left group"
+                        >
+                          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl w-fit group-hover:bg-indigo-100 transition-colors">
+                            <Building2 className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Departamentos</p>
+                            <h4 className="text-xl font-black text-slate-900">{summary.employees.departments}</h4>
+                            <p className="text-[9px] text-indigo-600 font-bold">ativos →</p>
+                          </div>
+                        </button>
+
+                        <div className="bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] border border-transparent transition-all">
+                          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl w-fit text-lg leading-none">🎂</div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Aniversários</p>
+                            <h4 className="text-xl font-black text-slate-900">{summary.employees.birthdaysMonth}</h4>
+                            <p className="text-[9px] text-amber-600 font-bold">neste mês</p>
+                          </div>
+                        </div>
+
+                        <div className={`bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] border transition-all ${summary.employees.onVacation > 0 ? 'border-sky-200' : 'border-transparent'}`}>
+                          <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl w-fit">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Em Férias Agora</p>
+                            <h4 className="text-xl font-black text-slate-900">{summary.employees.onVacation}</h4>
+                            <p className="text-[9px] text-sky-600 font-bold">funcionários</p>
+                          </div>
+                        </div>
+
+                        <div className={`bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] border transition-all ${summary.employees.upcomingVacations > 0 ? 'border-amber-200' : 'border-transparent'}`}>
+                          <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl w-fit">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Férias Próximas</p>
+                            <h4 className="text-xl font-black text-slate-900">{summary.employees.upcomingVacations}</h4>
+                            <p className="text-[9px] text-amber-600 font-bold">nos próx. 30 dias</p>
+                          </div>
+                        </div>
+
+                        <div className={`bg-white p-4 rounded-2xl flex flex-col space-y-2 shadow-[0_4px_18px_rgba(0,0,0,0.03)] border transition-all ${summary.activities.overdue > 0 ? 'border-red-200' : 'border-transparent'}`}>
+                          <div className={`p-2.5 rounded-xl w-fit ${summary.activities.overdue > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-50 text-slate-500'}`}>
+                            <AlertCircle className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[9px] text-slate-400 font-extrabold uppercase">Ativ. Vencidas</p>
+                            <h4 className={`text-xl font-black ${summary.activities.overdue > 0 ? 'text-red-700' : 'text-slate-900'}`}>{summary.activities.overdue}</h4>
+                            <p className={`text-[9px] font-bold ${summary.activities.overdue > 0 ? 'text-red-500' : 'text-slate-400'}`}>prazo expirado</p>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <Leaf className="w-8 h-8 text-emerald-400 mt-3 sm:mt-0 opacity-80 shrink-0" />
+
+                    {/* Financeiro */}
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-2 text-slate-800">
+                        <DollarSign className="w-4 h-4 text-emerald-700" />
+                        <h3 className="text-xs font-black uppercase tracking-wider font-mono">Financeiro — Folha & Estoque</h3>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                        {/* Folha do mês atual */}
+                        <button
+                          onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['financeiro']); setActiveSubTab('financeiro'); setViewingCandidateUid(null); }}
+                          className="bg-white p-5 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] border border-transparent hover:border-emerald-200 transition-all cursor-pointer text-left group"
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide">Folha do Mês</p>
+                            <span className="text-[9px] bg-emerald-50 text-emerald-800 font-black px-2 py-0.5 rounded font-mono">{summary.payroll.currentMonth}</span>
+                          </div>
+                          <h4 className="text-xl font-black text-slate-900 font-mono">
+                            {summary.payroll.totalNet > 0
+                              ? `R$ ${Number(summary.payroll.totalNet).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : <span className="text-slate-400 text-sm">Sem registros</span>
+                            }
+                          </h4>
+                          <p className="text-[9px] text-slate-400 mt-1">{summary.payroll.totalEmps} funcionários · {summary.payroll.paidCount} pagos</p>
+                          {summary.payroll.prevMonthNet > 0 && (
+                            <p className="text-[9px] text-emerald-600 font-bold mt-1">
+                              Mês anterior: R$ {Number(summary.payroll.prevMonthNet).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          )}
+                          <p className="text-[9px] text-emerald-700 font-bold mt-1 group-hover:underline">Ver folha →</p>
+                        </button>
+
+                        {/* Atividades com prazo próximo */}
+                        <button
+                          onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['suppliers']); setActiveSubTab('suppliers'); setViewingCandidateUid(null); }}
+                          className={`bg-white p-5 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] border transition-all cursor-pointer text-left group ${summary.activities.dueSoon > 0 ? 'border-amber-200' : 'border-transparent hover:border-amber-200'}`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide">Ativ. Urgentes</p>
+                            <span className={`text-[9px] font-black px-2 py-0.5 rounded font-mono ${summary.activities.dueSoon > 0 ? 'bg-amber-50 text-amber-800' : 'bg-slate-50 text-slate-500'}`}>7 dias</span>
+                          </div>
+                          <h4 className={`text-xl font-black ${summary.activities.dueSoon > 0 ? 'text-amber-700' : 'text-slate-900'}`}>{summary.activities.dueSoon}</h4>
+                          <p className="text-[9px] text-slate-400 mt-1">atividades com prazo próximo</p>
+                          {summary.activities.overdue > 0 && (
+                            <p className="text-[9px] text-red-600 font-bold mt-1">{summary.activities.overdue} vencidas sem conclusão</p>
+                          )}
+                          <p className="text-[9px] text-amber-700 font-bold mt-1 group-hover:underline">Ver quadro →</p>
+                        </button>
+
+                        {/* Vagas por departamento */}
+                        {summary.recruitment.vacanciesByDept.length > 0 ? (
+                          <div className="bg-white p-5 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] border border-transparent transition-all">
+                            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide mb-3">Vagas por Depto</p>
+                            <div className="space-y-1.5">
+                              {summary.recruitment.vacanciesByDept.slice(0, 4).map((d, i) => (
+                                <div key={i} className="flex items-center justify-between text-[10px]">
+                                  <span className="text-slate-700 font-semibold truncate pr-2">{d.label || 'Geral'}</span>
+                                  <span className="font-black text-blue-700 shrink-0">{d.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-white p-5 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] border border-transparent flex items-center justify-center text-xs italic text-slate-400">
+                            Nenhuma vaga ativa
+                          </div>
+                        )}
+
+                        {/* Estoque */}
+                        <button
+                          onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['financeiro']); setActiveSubTab('financeiro'); setViewingCandidateUid(null); }}
+                          className={`bg-white p-5 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)] hover:shadow-[0_6px_22px_rgba(0,0,0,0.08)] border transition-all cursor-pointer text-left group ${summary.stock.lowStockCount > 0 ? 'border-red-200' : 'border-transparent hover:border-slate-200'}`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <p className="text-[10px] text-slate-500 font-extrabold uppercase tracking-wide">Estoque</p>
+                            {summary.stock.lowStockCount > 0 && (
+                              <span className="text-[9px] bg-red-50 text-red-700 font-black px-2 py-0.5 rounded font-mono">Alerta</span>
+                            )}
+                          </div>
+                          <h4 className="text-xl font-black text-slate-900">{summary.stock.totalItems}</h4>
+                          <p className="text-[9px] text-slate-400 mt-1">itens cadastrados</p>
+                          {summary.stock.lowStockCount > 0 ? (
+                            <p className="text-[9px] text-red-600 font-bold mt-1">{summary.stock.lowStockCount} abaixo do mínimo</p>
+                          ) : (
+                            <p className="text-[9px] text-emerald-600 font-bold mt-1">Níveis normais</p>
+                          )}
+                          <p className="text-[9px] text-slate-500 font-bold mt-1 group-hover:underline">Ver estoque →</p>
+                        </button>
+
+                      </div>
+                    </div>
+
+                    {/* Candidatos recentes por status (últimos 30 dias) */}
+                    {summary.recruitment.recentByStatus.length > 0 && (
+                      <div className="bg-white p-6 rounded-2xl shadow-[0_4px_18px_rgba(0,0,0,0.03)]">
+                        <div className="border-b border-slate-100 pb-3 mb-4 flex items-center justify-between">
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm">Candidatos — Últimos 30 Dias</h3>
+                            <p className="text-[10px] text-slate-500">Distribuição por status das candidaturas recentes.</p>
+                          </div>
+                          <button
+                            onClick={() => { window.history.pushState(null, '', TAB_TO_HASH['candidates']); setActiveSubTab('candidates'); setViewingCandidateUid(null); }}
+                            className="text-[10px] text-emerald-700 font-extrabold hover:underline cursor-pointer"
+                          >
+                            Ver todos →
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {summary.recruitment.recentByStatus.map((s, i) => {
+                            const colorMap: Record<string, string> = {
+                              'Novo': 'bg-blue-50 text-blue-800 border-blue-100',
+                              'Em Análise': 'bg-amber-50 text-amber-800 border-amber-100',
+                              'Aprovado': 'bg-emerald-50 text-emerald-800 border-emerald-100',
+                              'Reprovado': 'bg-red-50 text-red-700 border-red-100',
+                            };
+                            const cls = colorMap[s.label] || 'bg-slate-50 text-slate-700 border-slate-100';
+                            return (
+                              <div key={i} className={`p-3 rounded-xl border ${cls} text-center`}>
+                                <h4 className="text-lg font-black">{s.value}</h4>
+                                <p className="text-[10px] font-bold mt-0.5">{s.label}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                   </div>
-
-                  {/* Sliders Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 relative z-10">
-                    
-                    {/* Avicultura Slider */}
-                    <div className="bg-white/5 p-4 rounded-2xl hover:bg-white/8 transition-colors space-y-3.5 border border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black tracking-wide text-amber-200 uppercase font-mono">🥚 Avicultura (Ovos)</span>
-                        <span className="text-xs font-mono font-black text-amber-400">{simOvos}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="50" 
-                        max="150" 
-                        value={simOvos} 
-                        onChange={(e) => setSimOvos(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-700 accent-amber-400 cursor-pointer rounded-lg appearance-none"
-                      />
-                      <div className="flex justify-between text-[9px] text-slate-400 font-bold">
-                        <span>Mín (50%)</span>
-                        <span>Máx (150%)</span>
-                      </div>
-                      <div className="pt-1 text-[10px] text-emerald-100/70 italic border-t border-white/5">
-                        Alvo: <strong>{simResults.ovosVal}</strong> cx./mês
-                      </div>
-                    </div>
-
-                    {/* Citricultura Slider */}
-                    <div className="bg-white/5 p-4 rounded-2xl hover:bg-white/8 transition-colors space-y-3.5 border border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black tracking-wide text-orange-300 uppercase font-mono">🍊 Citros (Laranja)</span>
-                        <span className="text-xs font-mono font-black text-orange-400">{simCitros}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="50" 
-                        max="150" 
-                        value={simCitros} 
-                        onChange={(e) => setSimCitros(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-700 accent-orange-400 cursor-pointer rounded-lg appearance-none"
-                      />
-                      <div className="flex justify-between text-[9px] text-slate-400 font-bold">
-                        <span>Mín (50%)</span>
-                        <span>Máx (150%)</span>
-                      </div>
-                      <div className="pt-1 text-[10px] text-emerald-100/70 italic border-t border-white/5">
-                        Alvo: <strong>{simResults.citrosVal}</strong> t/mês
-                      </div>
-                    </div>
-
-                    {/* Cafeicultura Slider */}
-                    <div className="bg-white/5 p-4 rounded-2xl hover:bg-white/8 transition-colors space-y-3.5 border border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black tracking-wide text-yellow-300 uppercase font-mono">☕ Café Arábica</span>
-                        <span className="text-xs font-mono font-black text-yellow-400">{simCafe}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="50" 
-                        max="150" 
-                        value={simCafe} 
-                        onChange={(e) => setSimCafe(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-700 accent-yellow-400 cursor-pointer rounded-lg appearance-none"
-                      />
-                      <div className="flex justify-between text-[9px] text-slate-400 font-bold">
-                        <span>Mín (50%)</span>
-                        <span>Máx (150%)</span>
-                      </div>
-                      <div className="pt-1 text-[10px] text-emerald-100/70 italic border-t border-white/5">
-                        Alvo: <strong>{simResults.cafeVal}</strong> sc./mês
-                      </div>
-                    </div>
-
-                    {/* Pecuária Nelore Slider */}
-                    <div className="bg-white/5 p-4 rounded-2xl hover:bg-white/8 transition-colors space-y-3.5 border border-white/5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-black tracking-wide text-teal-300 uppercase font-mono">🐂 Nelore (MT)</span>
-                        <span className="text-xs font-mono font-black text-teal-400">{simNelore}%</span>
-                      </div>
-                      <input 
-                        type="range" 
-                        min="50" 
-                        max="150" 
-                        value={simNelore} 
-                        onChange={(e) => setSimNelore(Number(e.target.value))}
-                        className="w-full h-1.5 bg-slate-700 accent-teal-400 cursor-pointer rounded-lg appearance-none"
-                      />
-                      <div className="flex justify-between text-[9px] text-slate-400 font-bold">
-                        <span>Mín (50%)</span>
-                        <span>Máx (150%)</span>
-                      </div>
-                      <div className="pt-1 text-[10px] text-emerald-100/70 italic border-t border-white/5">
-                        Alvo: <strong>{simResults.neloreVal}</strong> cab. rebanho
-                      </div>
-                    </div>
-
-                  </div>
-
-                  {/* Circular feedback logic with live generated metrics */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10 pt-4 border-t border-white/10">
-                    
-                    {/* Manure production (circular connection check) */}
-                    <div className="bg-emerald-990/40 p-4 rounded-2xl border border-emerald-500/10 hover:border-emerald-500/20 transition-all">
-                      <p className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest font-mono">Adubo Orgânico Gerado</p>
-                      <h4 className="text-xl font-bold mt-1 text-white">{simResults.manureGenerated.toLocaleString('pt-BR')} t</h4>
-                      <p className="text-[10px] text-emerald-100/70 mt-1">Esterco enriquecido termofilizado produzido em Tatuí.</p>
-                    </div>
-
-                    {/* Cost reduction in chemical fertilizer based on manure generated */}
-                    <div className="bg-emerald-990/40 p-4 rounded-2xl border border-emerald-500/10 hover:border-emerald-500/20 transition-all">
-                      <p className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest font-mono">Economia Ecológica</p>
-                      <h4 className="text-xl font-bold mt-1 text-emerald-300">R$ {simResults.fertilizerSavings.toLocaleString('pt-BR')}</h4>
-                      <p className="text-[10px] text-emerald-100/70 mt-1">Sustentabilidade reduzindo o uso de químicos industriais.</p>
-                    </div>
-
-                    {/* Bio-Score Indicator */}
-                    <div className="bg-emerald-950 p-4 rounded-2xl border border-emerald-500/20 hover:border-emerald-500/35 transition-all">
-                      <p className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest font-mono">Biomassa do Solo (Índice)</p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <h4 className="text-xl font-black text-emerald-400">{simResults.soilScore}%</h4>
-                        <span className="text-[9px] font-bold text-emerald-200/80 uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-900/60 shrink-0">
-                          {simResults.soilScore >= 95 ? 'Excelente' : simResults.soilScore >= 85 ? 'Ótimo' : 'Equilibrado'}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-emerald-100/70 mt-1">Nutrição natural do solo sob fertilização orgânica em Tatuí/Itaí.</p>
-                    </div>
-
-                    {/* Financial Estimations of chosen targets */}
-                    <div className="bg-emerald-990/40 p-4 rounded-2xl border border-emerald-500/10 hover:border-emerald-500/20 transition-all">
-                      <p className="text-[10px] text-emerald-300 font-extrabold uppercase tracking-widest font-mono">Faturamento Mensal Est.</p>
-                      <h4 className="text-xl font-bold mt-1 text-amber-400 font-mono">R$ {Math.round(simResults.totalRevenueEst).toLocaleString('pt-BR')}</h4>
-                      <p className="text-[10px] text-emerald-100/70 mt-1">Estimativa comercial consolidada das 4 frentes produtivas.</p>
-                    </div>
-
-                  </div>
-
-                  {/* High Quality Informative Box detailing the integration */}
-                  <div className="bg-white/5 rounded-2xl p-4 text-[11px] text-emerald-100/80 leading-relaxed border border-white/5 relative z-10 flex items-start space-x-3 font-sans">
-                    <span className="text-lg">💡</span>
-                    <div>
-                      <strong className="text-white block font-extrabold mb-1">Integração Circular Ecológica do Grupo Shigueno:</strong>
-                      A colheita de ovos poedeiras em Tatuí gera fertilizante que aduba organicamente os pomares de laranja (Tatuí e Buri) e café (Itaí). No Mato Grosso, a recria racional de Nelore em piquetes rotacionados mantém a biosseguridade e renovação das pastagens com dignidade animal impecável.
-                    </div>
-                  </div>
-
-                </div>
+                )}
 
               </div>
             )}

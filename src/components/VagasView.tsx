@@ -21,6 +21,7 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
   const [cvFile, setCvFile] = React.useState<File | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [submittedMessage, setSubmittedMessage] = React.useState<string | null>(null);
+  const [formError, setFormError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Paginação
@@ -59,14 +60,15 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resumo Curricular / Experiência *",
       fieldCvHelp: "Copie e cole suas experiências aqui",
       cvPlaceholder: "Descreva brevemente onde trabalhou, maquinários que opera, fazendas onde trabalhou ou referências de trabalhos rurais anteriores...",
-      fieldFile: "Anexar Currículo (PDF, DOC, DOCX)",
+      fieldFile: "Anexar Currículo (PDF, DOC, DOCX) *",
       fieldFileBtn: "Clique para anexar arquivo",
-      fieldFileHelp: "Opcional · Máx. 10 MB",
+      fieldFileHelp: "Obrigatório · Máx. 10 MB",
       fieldFileRemove: "Remover arquivo",
       sending: "Enviando Ficha...",
       submitBtn: "Enviar Currículo para o RH",
       securityNote: "* Seus dados serão transmitidos de forma segura diretamente para o banco de dados do painel do Gestor Shigueno.",
       alertFields: "Por favor, preencha todos os campos obrigatórios.",
+      alertFile: "Anexe seu currículo (PDF, DOC ou DOCX) antes de enviar.",
       alertError: "Erro ao enviar candidatura: ",
       alertConnection: "Erro de conexão ao enviar currículo."
     },
@@ -101,14 +103,15 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resume Summary / Experience *",
       fieldCvHelp: "Copy and paste your professional background here",
       cvPlaceholder: "Briefly describe your past jobs, machinery you operate, farms you worked on, or previous agricultural references...",
-      fieldFile: "Attach Resume (PDF, DOC, DOCX)",
+      fieldFile: "Attach Resume (PDF, DOC, DOCX) *",
       fieldFileBtn: "Click to attach file",
-      fieldFileHelp: "Optional · Max 10 MB",
+      fieldFileHelp: "Required · Max 10 MB",
       fieldFileRemove: "Remove file",
       sending: "Submitting Form...",
       submitBtn: "Send Resume to HR",
       securityNote: "* Your data will be securely transmitted directly to Shigueno's admin dashboard database.",
       alertFields: "Please fill in all required fields.",
+      alertFile: "Please attach your resume (PDF, DOC or DOCX) before submitting.",
       alertError: "Error sending application: ",
       alertConnection: "Connection error while submitting resume."
     },
@@ -143,14 +146,15 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
       fieldCv: "Resumen de Currículum / Experiencia *",
       fieldCvHelp: "Copie y pegue sus experiencias aquí",
       cvPlaceholder: "Describa brevemente dónde trabajó, qué maquinarias opera, granjas donde trabajó o referencias de trabajos agrícolas anteriores...",
-      fieldFile: "Adjuntar Currículum (PDF, DOC, DOCX)",
+      fieldFile: "Adjuntar Currículum (PDF, DOC, DOCX) *",
       fieldFileBtn: "Haga clic para adjuntar archivo",
-      fieldFileHelp: "Opcional · Máx. 10 MB",
+      fieldFileHelp: "Obligatorio · Máx. 10 MB",
       fieldFileRemove: "Eliminar archivo",
       sending: "Enviando Ficha...",
       submitBtn: "Enviar Currículum a Recursos Humanos",
       securityNote: "* Sus datos se transmitirán de forma segura directamente a la base de datos del panel de administración de Shigueno.",
       alertFields: "Por favor, complete todos los campos obligatorios.",
+      alertFile: "Adjunte su currículum (PDF, DOC o DOCX) antes de enviar.",
       alertError: "Error al enviar la postulación: ",
       alertConnection: "Error de conexión al enviar el currículum."
     }
@@ -179,8 +183,13 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
 
   const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
     if (!name || !email || !phone || !cvText) {
-      alert(tView.alertFields);
+      setFormError(tView.alertFields);
+      return;
+    }
+    if (!cvFile) {
+      setFormError(tView.alertFile);
       return;
     }
 
@@ -200,15 +209,16 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
 
       if (data.success) {
         setSubmittedMessage(data.message || tView.successTitle);
+        setFormError(null);
         setName(''); setEmail(''); setPhone(''); setCvText(''); setCvFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        alert(tView.alertError + data.message);
+        setFormError(tView.alertError + data.message);
       }
     } catch (err) {
       console.error(err);
-      alert(tView.alertConnection);
+      setFormError(tView.alertConnection);
     } finally {
       setSubmitting(false);
     }
@@ -449,7 +459,15 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
                       required
                       placeholder="Ex: (15) 99885-4422"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, '').slice(0, 11);
+                        let masked = digits;
+                        if (digits.length > 10) masked = `(${digits.slice(0,2)}) ${digits.slice(2,7)}-${digits.slice(7)}`;
+                        else if (digits.length > 6) masked = `(${digits.slice(0,2)}) ${digits.slice(2,6)}-${digits.slice(6)}`;
+                        else if (digits.length > 2) masked = `(${digits.slice(0,2)}) ${digits.slice(2)}`;
+                        else if (digits.length > 0) masked = `(${digits}`;
+                        setPhone(masked);
+                      }}
                       className="w-full bg-white border border-slate-250 px-4 py-2.5 rounded-xl text-xs font-medium focus:outline-emerald-805 font-sans"
                     />
                   </div>
@@ -515,9 +533,18 @@ export default function VagasView({ onNavigate }: VagasViewProps) {
                   )}
                 </div>
 
+                {formError && (
+                  <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-xs font-semibold animate-fade-in">
+                    <svg className="w-4 h-4 shrink-0 mt-0.5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+                    <span>{formError}</span>
+                    <button type="button" onClick={()=>setFormError(null)} className="ml-auto text-red-400 hover:text-red-600 cursor-pointer shrink-0"><X className="w-3.5 h-3.5"/></button>
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={submitting}
+                  onClick={() => setFormError(null)}
                   className="w-full bg-emerald-800 hover:bg-emerald-905 text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all uppercase tracking-wider cursor-pointer font-sans"
                 >
                   {submitting ? tView.sending : tView.submitBtn}

@@ -36,9 +36,7 @@ router.get('/candidates', async (_req: Request, res: Response) => {
   try {
     const db = await getDb();
     const candidates = await db.all(`
-      SELECT c.id, c.uid, c.name, c.email, c.phone, c.vacancy_id, c.cv_text, c.cv_filename,
-             c.applied_at, c.status, c.pipeline_stage, c.salary_expectation, c.availability,
-             c.source, c.recruiter_rating, c.ai_analysis,
+      SELECT c.*,
              v.title as vacancy_title
       FROM candidates c
       LEFT JOIN vacancies v ON c.vacancy_id = v.id

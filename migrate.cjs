@@ -77,6 +77,20 @@ async function run() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('candidates');
 
+  // Colunas adicionadas após a criação inicial — ADD COLUMN IF NOT EXISTS é idempotente no MySQL 8+
+  const candidateCols = [
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS uid VARCHAR(36) DEFAULT NULL`,
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS pipeline_stage VARCHAR(50) DEFAULT NULL`,
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS salary_expectation VARCHAR(100) DEFAULT NULL`,
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS availability VARCHAR(100) DEFAULT NULL`,
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS source VARCHAR(100) DEFAULT NULL`,
+    `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS recruiter_rating INT DEFAULT NULL`,
+  ];
+  for (const col of candidateCols) {
+    try { await db.execute(col); } catch(e) { /* coluna já existe */ }
+  }
+  ok('candidates columns');
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS suppliers (
       id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -146,8 +160,7 @@ async function run() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('activities');
 
-  // Adiciona colunas novas se já existir tabela (idempotente)
-  // ALTER TABLE idempotente — ignora erro se coluna já existir (MySQL 5.7 não suporta IF NOT EXISTS em ALTER)
+  // ── Colunas novas de activities (idempotente — catch ignora se já existir) ──
   const addCol = (sql) => db.execute(sql).catch(() => {});
   await addCol(`ALTER TABLE activities ADD COLUMN sector VARCHAR(100) DEFAULT ''`);
   await addCol(`ALTER TABLE activities ADD COLUMN completed_at DATETIME DEFAULT NULL`);
@@ -156,6 +169,9 @@ async function run() {
   await addCol(`ALTER TABLE activities ADD COLUMN visibility ENUM('public','private') DEFAULT 'public'`);
   await addCol(`ALTER TABLE activities ADD COLUMN shared_with JSON DEFAULT NULL`);
   await addCol(`ALTER TABLE activities ADD COLUMN board_id INT DEFAULT NULL`);
+  await addCol(`ALTER TABLE activities ADD COLUMN extra_data JSON DEFAULT NULL`);
+  await addCol(`ALTER TABLE activities ADD COLUMN board_type VARCHAR(100) DEFAULT NULL`);
+  ok('activities columns');
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS boards (
@@ -282,6 +298,117 @@ async function run() {
       FOREIGN KEY (client_id) REFERENCES integration_clients(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `); ok('integration_candidates');
+
+  // ── Tabelas de recrutamento ───────────────────────────────────────────────────
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS candidate_interviews (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id  INT          NOT NULL,
+      vacancy_id    INT          DEFAULT NULL,
+      interviewer   VARCHAR(255) NOT NULL,
+      scheduled_at  DATETIME     NOT NULL,
+      duration_min  INT          DEFAULT 60,
+      type          VARCHAR(100) DEFAULT 'Entrevista RH',
+      location      VARCHAR(255) DEFAULT NULL,
+      status        VARCHAR(50)  DEFAULT 'Agendada',
+      result        VARCHAR(100) DEFAULT '—',
+      score         INT          DEFAULT NULL,
+      notes         LONGTEXT,
+      created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('candidate_interviews');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS candidate_evaluations (
+      id                   INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id         INT          NOT NULL,
+      vacancy_id           INT          DEFAULT NULL,
+      evaluator            VARCHAR(255) NOT NULL,
+      evaluation_date      DATE         NOT NULL,
+      type                 VARCHAR(100) DEFAULT 'Competências',
+      score_technical      INT          DEFAULT 0,
+      score_communication  INT          DEFAULT 0,
+      score_attitude       INT          DEFAULT 0,
+      score_experience     INT          DEFAULT 0,
+      score_cultural_fit   INT          DEFAULT 0,
+      strengths            LONGTEXT,
+      weaknesses           LONGTEXT,
+      recommendation       VARCHAR(100) DEFAULT 'Aguardar',
+      notes                LONGTEXT,
+      created_at           DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at           DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('candidate_evaluations');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS candidate_observations (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id  INT          NOT NULL,
+      author        VARCHAR(255) NOT NULL,
+      type          VARCHAR(100) DEFAULT 'Observação',
+      content       LONGTEXT     NOT NULL,
+      is_private    TINYINT(1)   DEFAULT 0,
+      created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('candidate_observations');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS candidate_referrals (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id  INT          NOT NULL,
+      vacancy_id    INT          DEFAULT NULL,
+      type          VARCHAR(100) DEFAULT 'Outro',
+      description   LONGTEXT     NOT NULL,
+      deadline      DATE         DEFAULT NULL,
+      status        VARCHAR(50)  DEFAULT 'Pendente',
+      assigned_to   VARCHAR(255) DEFAULT NULL,
+      notes         LONGTEXT,
+      created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('candidate_referrals');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS candidate_onboarding (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      candidate_id  INT          NOT NULL UNIQUE,
+      employee_id   INT          DEFAULT NULL,
+      status        VARCHAR(50)  DEFAULT 'Pendente',
+      start_date    DATE         DEFAULT NULL,
+      hired_date    DATE         DEFAULT NULL,
+      department    VARCHAR(100) DEFAULT NULL,
+      role          VARCHAR(255) DEFAULT NULL,
+      manager_id    INT          DEFAULT NULL,
+      salary        DECIMAL(10,2) DEFAULT NULL,
+      notes         LONGTEXT,
+      created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('candidate_onboarding');
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS onboarding_items (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      onboarding_id   INT          NOT NULL,
+      category        VARCHAR(100) NOT NULL,
+      item            VARCHAR(255) NOT NULL,
+      description     LONGTEXT,
+      required        TINYINT(1)   DEFAULT 1,
+      status          VARCHAR(50)  DEFAULT 'Pendente',
+      delivered_at    DATETIME     DEFAULT NULL,
+      delivered_by    VARCHAR(255) DEFAULT NULL,
+      notes           LONGTEXT,
+      created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (onboarding_id) REFERENCES candidate_onboarding(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `); ok('onboarding_items');
 
   // ── Seed data ────────────────────────────────────────────────────────────────
   console.log('\n  Inserindo dados iniciais...');
