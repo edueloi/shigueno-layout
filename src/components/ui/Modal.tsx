@@ -36,6 +36,10 @@ export interface ModalProps {
   lockBackdrop?: boolean;
   /** Tom do cabeçalho: emerald (padrão), gold, danger */
   headerTone?: 'emerald' | 'gold' | 'danger' | 'plain';
+  /** Cabeçalho 100% customizado — substitui o cabeçalho padrão (fica fixo, fora do scroll) */
+  header?: React.ReactNode;
+  /** Remove o padding padrão do corpo */
+  flushBody?: boolean;
 }
 
 const HEADER_TONES = {
@@ -48,6 +52,7 @@ const HEADER_TONES = {
 export default function Modal({
   open, onClose, title, subtitle, icon: Icon, size = 'md',
   footer, children, lockBackdrop = false, headerTone = 'emerald',
+  header, flushBody = false,
 }: ModalProps) {
   // Fecha com tecla Esc
   React.useEffect(() => {
@@ -84,13 +89,21 @@ export default function Modal({
             animate-sheet-up sm:animate-scale-in
           `}
         >
-          {/* Alça de arrastar (visível só no celular) */}
-          <div className={`sm:hidden flex justify-center pt-2.5 ${HEADER_TONES[headerTone]}`}>
-            <div className={`w-10 h-1 rounded-full ${isDarkHeader ? 'bg-white/30' : 'bg-slate-950/20'}`} />
-          </div>
+          {/* Cabeçalho customizado — fixo, com alça de arrastar sobreposta no celular */}
+          {header ? (
+            <div className="relative shrink-0">
+              <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/30 z-10 pointer-events-none" />
+              {header}
+            </div>
+          ) : (
+            /* Alça de arrastar (visível só no celular) */
+            <div className={`sm:hidden flex justify-center pt-2.5 ${HEADER_TONES[headerTone]}`}>
+              <div className={`w-10 h-1 rounded-full ${isDarkHeader ? 'bg-white/30' : 'bg-slate-950/20'}`} />
+            </div>
+          )}
 
-          {/* Cabeçalho */}
-          {(title || Icon) && (
+          {/* Cabeçalho padrão */}
+          {!header && (title || Icon) && (
             <div className={`px-5 sm:px-6 py-4 flex items-center justify-between gap-3 shrink-0 ${HEADER_TONES[headerTone]}`}>
               <div className="flex items-center gap-3 min-w-0">
                 {Icon && (
@@ -122,7 +135,7 @@ export default function Modal({
           )}
 
           {/* Corpo com scroll */}
-          <div className="flex-1 overflow-y-auto scrollbar-thin px-5 sm:px-6 py-5">
+          <div className={`flex-1 overflow-y-auto scrollbar-thin ${flushBody ? '' : 'px-5 sm:px-6 py-5'}`}>
             {children}
           </div>
 

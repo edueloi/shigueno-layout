@@ -105,6 +105,12 @@
   animation: goldShine 6s ease-in-out infinite;
 }
 
+/* Barra de progresso do Toast */
+@keyframes toastBar {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
 /* Texto truncado em 2 linhas (notificações, cards) */
 .line-clamp-2 {
   display: -webkit-box;

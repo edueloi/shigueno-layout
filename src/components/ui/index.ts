@@ -18,6 +18,8 @@ export type { BadgeProps, BadgeTone } from './Badge';
 export { Field, Input, Select, Textarea } from './Field';
 
 export { default as EmptyState } from './EmptyState';
+export { default as Toast } from './Toast';
+export type { ToastTone } from './Toast';
 export { default as Skeleton, SkeletonDashboard, SkeletonRows } from './Skeleton';
 
 export { default as NotificationBell, buildNotifications } from './NotificationBell';
